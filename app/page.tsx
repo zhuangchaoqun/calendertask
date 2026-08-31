@@ -22,14 +22,6 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -204,14 +196,14 @@ export default function Home() {
             <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 hover:text-white" onClick={() => setViewDate((date) => new Date(date.getFullYear(), date.getMonth() - 1, 1))} aria-label="上个月"><ChevronLeft /></Button>
             <Button variant="ghost" className="hidden text-[#fff8ae] hover:bg-white/10 hover:text-[#fff8ae] sm:inline-flex" onClick={() => setViewDate(today)}>今天</Button>
             <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 hover:text-white" onClick={() => setViewDate((date) => new Date(date.getFullYear(), date.getMonth() + 1, 1))} aria-label="下个月"><ChevronRight /></Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="text-white hover:bg-white/10 hover:text-white" aria-label="日历菜单" />}><Menu /></DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => openNew(today)}><Plus /> 新建今日待办</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSearch('')}><RotateCcw /> 清除搜索</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <details className="native-menu">
+              <summary className="native-menu-trigger text-white" aria-label="日历菜单"><Menu /></summary>
+              <div className="native-menu-panel right-0 w-48">
+                <p className="native-menu-label">{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</p>
+                <button type="button" onClick={() => openNew(today)}><Plus /> 新建今日待办</button>
+                <button type="button" onClick={() => setSearch('')}><RotateCcw /> 清除搜索</button>
+              </div>
+            </details>
           </div>
         </header>
 
@@ -266,22 +258,22 @@ export default function Home() {
 
             <div className="editor-toolbar">
               <Button type="button" variant={draftCompleted ? 'default' : 'ghost'} size="icon" onClick={() => setDraftCompleted((value) => !value)} title="标记完成" aria-label="标记完成"><CircleCheck /></Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" title="选择颜色" aria-label="选择颜色" />}><Palette /></DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-36">
-                  <DropdownMenuLabel>任务颜色</DropdownMenuLabel>
-                  {COLORS.map((color) => <DropdownMenuItem key={color.value} onClick={() => setDraftColor(color.value)}><span className={`size-3 rounded-full ${color.className}`} />{color.label}{draftColor === color.value && <Check className="ml-auto" />}</DropdownMenuItem>)}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <details className="native-menu">
+                <summary className="native-menu-trigger" title="选择颜色" aria-label="选择颜色"><Palette /></summary>
+                <div className="native-menu-panel left-0 bottom-full mb-2 w-36">
+                  <p className="native-menu-label">任务颜色</p>
+                  {COLORS.map((color) => <button type="button" key={color.value} onClick={() => setDraftColor(color.value)}><span className={`size-3 rounded-full ${color.className}`} />{color.label}{draftColor === color.value && <Check className="ml-auto" />}</button>)}
+                </div>
+              </details>
               <Button type="button" variant={draftReminder ? 'secondary' : 'ghost'} size="icon" onClick={() => setDraftReminder((value) => !value)} title="提醒" aria-label="切换提醒">{draftReminder ? <BellRing /> : <Bell />}</Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" title="更多操作" aria-label="更多操作" />}><Ellipsis /></DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-44">
-                  <DropdownMenuItem onClick={moveToTomorrow}><ChevronRight /> 移到明天</DropdownMenuItem>
-                  <DropdownMenuItem onClick={duplicateTask}><Copy /> 创建副本</DropdownMenuItem>
-                  {editingId && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={deleteTask}><Trash2 /> 删除待办</DropdownMenuItem></>}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <details className="native-menu">
+                <summary className="native-menu-trigger" title="更多操作" aria-label="更多操作"><Ellipsis /></summary>
+                <div className="native-menu-panel left-0 bottom-full mb-2 w-44">
+                  <button type="button" onClick={moveToTomorrow}><ChevronRight /> 移到明天</button>
+                  <button type="button" onClick={duplicateTask}><Copy /> 创建副本</button>
+                  {editingId && <><hr /><button type="button" className="text-red-600" onClick={deleteTask}><Trash2 /> 删除待办</button></>}
+                </div>
+              </details>
               <div className="ml-auto flex gap-2">
                 <Button type="button" variant="ghost" onClick={closeEditor}>取消</Button>
                 <Button type="submit" className="min-w-20">保存</Button>

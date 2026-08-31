@@ -202,6 +202,17 @@ body {
   .editor-field svg { @apply size-4 shrink-0; }
   .editor-field input { @apply min-w-0 flex-1 bg-transparent text-xs text-slate-800 outline-none sm:text-sm; }
   .editor-toolbar { @apply mt-3 flex items-center gap-1 border-t border-slate-200 pt-3; }
+
+  .native-menu { @apply relative; }
+  .native-menu > summary { list-style: none; }
+  .native-menu > summary::-webkit-details-marker { display: none; }
+  .native-menu-trigger { @apply grid size-8 cursor-pointer place-items-center rounded-lg text-slate-700 transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-primary/40; }
+  .native-menu-trigger svg { @apply size-4; }
+  .native-menu-panel { @apply absolute z-[70] overflow-hidden rounded-xl border border-slate-200 bg-white p-1 text-slate-800 shadow-xl; }
+  .native-menu-panel button { @apply flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-slate-100 focus:bg-slate-100 focus:outline-none; }
+  .native-menu-panel button svg { @apply size-4 shrink-0; }
+  .native-menu-label { @apply px-2.5 py-1.5 text-xs font-semibold text-slate-400; }
+  .native-menu-panel hr { @apply my-1 border-slate-200; }
 }
 
 @media (max-width: 639px) {
