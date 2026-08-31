@@ -170,7 +170,10 @@ export default function Home() {
   useEffect(() => {
     const savedOpacity = Number(window.localStorage.getItem('daylight-opacity'));
     if (savedOpacity >= 45 && savedOpacity <= 100) setOpacity(savedOpacity);
-    window.localStorage.removeItem('daylight-tasks');
+    const legacyTasks = window.localStorage.getItem('daylight-tasks');
+    if (legacyTasks && !window.localStorage.getItem('chaoqun-legacy-tasks-backup')) {
+      window.localStorage.setItem('chaoqun-legacy-tasks-backup', legacyTasks);
+    }
     window.localStorage.removeItem('daylight-sync-secret');
   }, []);
   useEffect(() => {
@@ -197,7 +200,12 @@ export default function Home() {
     if (saved) {
       try { setTasks(JSON.parse(saved) as Task[]); } catch { setTasks(starterTasks); }
     } else {
-      setTasks(starterTasks);
+      const legacy = window.localStorage.getItem('chaoqun-legacy-tasks-backup') ?? window.localStorage.getItem('daylight-tasks');
+      if (legacy) {
+        try { setTasks(JSON.parse(legacy) as Task[]); } catch { setTasks(starterTasks); }
+      } else {
+        setTasks(starterTasks);
+      }
     }
     accountConnectedOnce.current = false;
     setLoaded(true);
