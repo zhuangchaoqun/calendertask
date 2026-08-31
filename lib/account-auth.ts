@@ -7,7 +7,7 @@ import {
 
 export const ACCOUNT_SESSION_COOKIE = 'chaoqun_session';
 const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
-const PASSWORD_ITERATIONS = 310_000;
+const PASSWORD_ITERATIONS = 100_000;
 
 type RuntimeEnv = { DB: D1Database; AUTH_SESSION_SECRET?: string };
 export type AccountSession = { userId: string; username: string; tokenHash: string };

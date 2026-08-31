@@ -298,7 +298,11 @@ export default function Home() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ username: authUsername, password: authPassword }),
       });
-      const result = await response.json() as { error?: string };
+      const responseText = await response.text();
+      let result: { error?: string } = {};
+      if (responseText) {
+        try { result = JSON.parse(responseText) as { error?: string }; } catch { result = {}; }
+      }
       if (!response.ok) throw new Error(result.error || '操作失败');
       const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
       const session = await sessionResponse.json() as { user: AccountUser; syncSecret: string };
