@@ -5,10 +5,12 @@ const path = require('node:path');
 const SITE_URL = 'https://daylight-tasks.zhuangchaoqun.chatgpt.site';
 const SITE_ORIGIN = new URL(SITE_URL).origin;
 const SIZE_PRESETS = {
-  compact: { width: 760, height: 620 },
+  compact: { width: 640, height: 520 },
   standard: { width: 980, height: 760 },
   large: { width: 1380, height: 900 },
 };
+const MIN_WIDTH = 420;
+const MIN_HEIGHT = 360;
 
 let mainWindow;
 let settingsPath;
@@ -55,8 +57,8 @@ function createWindow() {
     height: savedBounds.height ?? preset.height,
     x: savedBounds.x,
     y: savedBounds.y,
-    minWidth: 680,
-    minHeight: 520,
+    minWidth: MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
     title: 'chaoquncalender',
     frame: false,
     transparent: true,
@@ -129,6 +131,31 @@ ipcMain.handle('chaoqun:set-always-on-top', (event, enabled) => {
   if (window) window.setAlwaysOnTop(Boolean(enabled), 'floating');
   writeSettings({ alwaysOnTop: Boolean(enabled) });
   return Boolean(window?.isAlwaysOnTop());
+});
+ipcMain.on('chaoqun:move-by', (event, deltaX, deltaY) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || window.isMaximized()) return;
+  const bounds = window.getBounds();
+  window.setPosition(bounds.x + Math.round(Number(deltaX) || 0), bounds.y + Math.round(Number(deltaY) || 0));
+});
+ipcMain.on('chaoqun:resize-by', (event, edge, deltaX, deltaY) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || window.isMaximized()) return;
+  const bounds = window.getBounds();
+  const dx = Math.round(Number(deltaX) || 0);
+  const dy = Math.round(Number(deltaY) || 0);
+  const next = { ...bounds };
+  if (edge.includes('e')) next.width = Math.max(MIN_WIDTH, bounds.width + dx);
+  if (edge.includes('s')) next.height = Math.max(MIN_HEIGHT, bounds.height + dy);
+  if (edge.includes('w')) {
+    next.width = Math.max(MIN_WIDTH, bounds.width - dx);
+    next.x = bounds.x + (bounds.width - next.width);
+  }
+  if (edge.includes('n')) {
+    next.height = Math.max(MIN_HEIGHT, bounds.height - dy);
+    next.y = bounds.y + (bounds.height - next.height);
+  }
+  window.setBounds(next);
 });
 ipcMain.on('chaoqun:set-opacity', (event, value) => {
   const window = BrowserWindow.fromWebContents(event.sender);

@@ -13,6 +13,7 @@ import {
   Clock3,
   Copy,
   Ellipsis,
+  GripHorizontal,
   Menu,
   Minimize2,
   Palette,
@@ -44,6 +45,7 @@ type Task = {
   reminder?: boolean;
 };
 type DesktopSize = 'compact' | 'standard' | 'large';
+type ResizeEdge = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 type DesktopState = { autoStart: boolean; alwaysOnTop: boolean; sizePreset: DesktopSize; opacity: number };
 type AccountUser = { id: string; username: string };
 
@@ -56,6 +58,8 @@ declare global {
       setAutoStart: (enabled: boolean) => Promise<boolean>;
       setSize: (preset: DesktopSize) => Promise<DesktopState>;
       setAlwaysOnTop: (enabled: boolean) => Promise<boolean>;
+      moveBy: (deltaX: number, deltaY: number) => void;
+      resizeBy: (edge: ResizeEdge, deltaX: number, deltaY: number) => void;
       minimize: () => void;
       close: () => void;
     };
@@ -133,7 +137,7 @@ async function decryptTasks(payload: string, secret: string) {
 }
 
 export default function Home() {
-  const today = useMemo(() => new Date(2026, 7, 31), []);
+  const today = useMemo(() => new Date(), []);
   const [viewDate, setViewDate] = useState(today);
   const [tasks, setTasks] = useState<Task[]>(starterTasks);
   const [search, setSearch] = useState('');
@@ -166,6 +170,27 @@ export default function Home() {
   const [authBusy, setAuthBusy] = useState(false);
   const suppressNextUpload = useRef(false);
   const accountConnectedOnce = useRef(false);
+  const desktopPointer = useRef<{ mode: 'move' | 'resize'; edge?: ResizeEdge; x: number; y: number } | null>(null);
+
+  const beginDesktopPointer = (event: React.PointerEvent<HTMLElement>, mode: 'move' | 'resize', edge?: ResizeEdge) => {
+    if (!window.daylightDesktop) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    desktopPointer.current = { mode, edge, x: event.screenX, y: event.screenY };
+  };
+
+  const updateDesktopPointer = (event: React.PointerEvent<HTMLElement>) => {
+    const active = desktopPointer.current;
+    if (!active || !window.daylightDesktop) return;
+    const deltaX = event.screenX - active.x;
+    const deltaY = event.screenY - active.y;
+    if (!deltaX && !deltaY) return;
+    if (active.mode === 'move') window.daylightDesktop.moveBy(deltaX, deltaY);
+    else if (active.edge) window.daylightDesktop.resizeBy(active.edge, deltaX, deltaY);
+    desktopPointer.current = { ...active, x: event.screenX, y: event.screenY };
+  };
+
+  const endDesktopPointer = () => { desktopPointer.current = null; };
 
   useEffect(() => {
     const savedOpacity = Number(window.localStorage.getItem('daylight-opacity'));
@@ -457,6 +482,7 @@ export default function Home() {
     <main className="min-h-screen bg-[#07101e] p-2 text-white sm:p-3 lg:p-4">
       <section style={{ opacity: isDesktop ? 1 : opacity / 100 }} className="calendar-shell mx-auto min-h-[calc(100vh-16px)] max-w-[1700px] overflow-hidden rounded-[24px] border border-white/10 bg-[#102844] shadow-[0_30px_90px_rgba(0,0,0,0.35)] transition-opacity sm:min-h-[calc(100vh-24px)] lg:min-h-[calc(100vh-32px)]">
         <header className="calendar-topbar">
+          {isDesktop && <button type="button" className="desktop-drag-grip" title="按住拖动桌面插件" aria-label="拖动桌面插件" onPointerDown={(event) => beginDesktopPointer(event, 'move')} onPointerMove={updateDesktopPointer} onPointerUp={endDesktopPointer} onPointerCancel={endDesktopPointer}><GripHorizontal /><span>拖动</span></button>}
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100/60">chaoquncalender</p>
             <h1 className="truncate text-base font-semibold text-[#fff8ae] sm:text-lg">今天是 {formatDate(today)}</h1>
@@ -515,6 +541,8 @@ export default function Home() {
           })}
         </div>
       </section>
+
+      {isDesktop && (['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as ResizeEdge[]).map((edge) => <div key={edge} className={`desktop-resize-handle desktop-resize-${edge}`} role="separator" aria-label={`调整窗口大小 ${edge}`} onPointerDown={(event) => beginDesktopPointer(event, 'resize', edge)} onPointerMove={updateDesktopPointer} onPointerUp={endDesktopPointer} onPointerCancel={endDesktopPointer} />)}
 
       {settingsOpen && (
         <div className="editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>

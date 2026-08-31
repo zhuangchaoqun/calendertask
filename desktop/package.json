@@ -1,6 +1,6 @@
 {
   "name": "chaoquncalender",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "description": "chaoquncalender Windows 11 desktop calendar widget",
   "main": "main.cjs",

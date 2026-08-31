@@ -191,6 +191,9 @@ html.desktop-app main {
   .desktop-app .calendar-topbar input,
   .desktop-app .calendar-topbar details,
   .desktop-app .calendar-topbar label { -webkit-app-region: no-drag; }
+  .desktop-drag-grip { @apply hidden shrink-0 items-center gap-1 rounded-lg border border-white/15 bg-black/10 px-2 py-1 text-[10px] font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white; -webkit-app-region: no-drag; cursor: move; touch-action: none; }
+  .desktop-app .desktop-drag-grip { @apply flex; }
+  .desktop-drag-grip svg { @apply size-4; }
   .desktop-window-buttons { @apply ml-1 flex items-center gap-0.5 border-l border-white/15 pl-1; }
   .desktop-window-buttons button { @apply grid size-8 place-items-center rounded-lg text-white/75 transition-colors hover:bg-white/15 hover:text-white; }
   .desktop-window-buttons button:last-child { @apply hover:bg-red-500/80; }
@@ -277,6 +280,19 @@ html.desktop-app main {
   }
   .settings-block { @apply mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4; }
   .opacity-slider { @apply mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-[#2f55e7]; }
+
+  .desktop-resize-handle { position: fixed; z-index: 100; -webkit-app-region: no-drag; touch-action: none; }
+  .desktop-resize-n, .desktop-resize-s { left: 12px; right: 12px; height: 8px; }
+  .desktop-resize-n { top: 0; cursor: n-resize; }
+  .desktop-resize-s { bottom: 0; cursor: s-resize; }
+  .desktop-resize-e, .desktop-resize-w { top: 12px; bottom: 12px; width: 8px; }
+  .desktop-resize-e { right: 0; cursor: e-resize; }
+  .desktop-resize-w { left: 0; cursor: w-resize; }
+  .desktop-resize-ne, .desktop-resize-nw, .desktop-resize-se, .desktop-resize-sw { width: 16px; height: 16px; }
+  .desktop-resize-ne { top: 0; right: 0; cursor: ne-resize; }
+  .desktop-resize-nw { top: 0; left: 0; cursor: nw-resize; }
+  .desktop-resize-se { right: 0; bottom: 0; cursor: se-resize; }
+  .desktop-resize-sw { left: 0; bottom: 0; cursor: sw-resize; }
 }
 
 @media (max-width: 639px) {
@@ -285,6 +301,14 @@ html.desktop-app main {
 }
 
 @media (max-width: 820px) {
-  .desktop-app .calendar-shell { min-width: 660px; }
-  .desktop-app main { overflow: auto; }
+  .desktop-app .calendar-topbar { height: 62px; padding-left: .65rem; padding-right: .65rem; }
+  .desktop-app .calendar-topbar h1 { font-size: .8rem; }
+  .desktop-app .calendar-task { padding-left: .25rem; padding-right: .25rem; }
+  .desktop-app .calendar-task-mark { display: none; }
+  .desktop-app .desktop-drag-grip span { display: none; }
 }
+
+.desktop-app main { height: 100vh; overflow: hidden; padding: 8px; }
+.desktop-app .calendar-shell { display: flex; width: 100%; height: calc(100vh - 16px); min-width: 0; min-height: 0; flex-direction: column; }
+.desktop-app .calendar-grid { min-height: 0; flex: 1; grid-template-rows: repeat(6, minmax(0, 1fr)); }
+.desktop-app .date-cell { min-height: 0; }
