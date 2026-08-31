@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { createSyncProfilesTable } from '@/db/schema';
-import { qqConfig, qqSyncSecret, readQQSession } from '@/lib/qq-auth';
+import { accountSyncSecret, readAccountSession } from '@/lib/account-auth';
 
 const MAX_PAYLOAD_BYTES = 512_000;
 
@@ -13,17 +13,16 @@ async function ensureSchema(db: D1Database) {
 }
 
 async function accountKey(request: Request) {
-  const config = qqConfig();
-  const session = await readQQSession(request);
-  if (!config || !session) return null;
-  const secret = await qqSyncSecret(session.openid, config.sessionSecret);
+  const session = await readAccountSession(request);
+  if (!session) return null;
+  const secret = await accountSyncSecret(session.userId);
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export async function GET(request: Request) {
   const key = await accountKey(request);
-  if (!key) return Response.json({ error: '请先使用 QQ 登录' }, { status: 401 });
+  if (!key) return Response.json({ error: '请先登录账号' }, { status: 401 });
 
   const db = database();
   await ensureSchema(db);
@@ -42,7 +41,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   const key = await accountKey(request);
-  if (!key) return Response.json({ error: '请先使用 QQ 登录' }, { status: 401 });
+  if (!key) return Response.json({ error: '请先登录账号' }, { status: 401 });
   const body = await request.json() as { payload?: string };
   const payload = body.payload ?? '';
   if (!payload || new TextEncoder().encode(payload).length > MAX_PAYLOAD_BYTES) {

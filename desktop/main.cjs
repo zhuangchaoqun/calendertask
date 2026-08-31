@@ -4,7 +4,6 @@ const path = require('node:path');
 
 const SITE_URL = 'https://daylight-tasks.zhuangchaoqun.chatgpt.site';
 const SITE_ORIGIN = new URL(SITE_URL).origin;
-const QQ_ORIGIN = 'https://graph.qq.com';
 const SIZE_PRESETS = {
   compact: { width: 760, height: 620 },
   standard: { width: 980, height: 760 },
@@ -82,12 +81,12 @@ function createWindow() {
   window.loadURL(SITE_URL);
 
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(SITE_ORIGIN) || url.startsWith(QQ_ORIGIN)) return { action: 'allow' };
+    if (url.startsWith(SITE_ORIGIN)) return { action: 'allow' };
     shell.openExternal(url);
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(SITE_ORIGIN) && !url.startsWith(QQ_ORIGIN)) {
+    if (!url.startsWith(SITE_ORIGIN)) {
       event.preventDefault();
       shell.openExternal(url);
     }

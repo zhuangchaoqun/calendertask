@@ -1,13 +1,3 @@
-export const createSyncProfilesTable = `
-CREATE TABLE IF NOT EXISTS sync_profiles (
-  sync_key_hash TEXT PRIMARY KEY,
-  encrypted_payload TEXT NOT NULL,
-  updated_at INTEGER NOT NULL,
-  revision INTEGER NOT NULL DEFAULT 1
-)
-`;
-
-export const createAppUsersTable = `
 CREATE TABLE IF NOT EXISTS app_users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,
@@ -18,20 +8,17 @@ CREATE TABLE IF NOT EXISTS app_users (
   locked_until INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
-)
-`;
+);
 
-export const createAppSessionsTable = `
 CREATE TABLE IF NOT EXISTS app_sessions (
   token_hash TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
-)
-`;
+);
 
-export const createAppSessionsIndex = `
 CREATE INDEX IF NOT EXISTS idx_app_sessions_user_expires
-ON app_sessions(user_id, expires_at)
-`;
+ON app_sessions(user_id, expires_at);
+
+PRAGMA optimize;

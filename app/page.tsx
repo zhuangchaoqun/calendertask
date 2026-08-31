@@ -19,7 +19,6 @@ import {
   Pin,
   PinOff,
   Plus,
-  QrCode,
   RefreshCw,
   RotateCcw,
   Search,
@@ -46,7 +45,7 @@ type Task = {
 };
 type DesktopSize = 'compact' | 'standard' | 'large';
 type DesktopState = { autoStart: boolean; alwaysOnTop: boolean; sizePreset: DesktopSize; opacity: number };
-type QQUser = { nickname: string; avatar?: string };
+type AccountUser = { id: string; username: string };
 
 declare global {
   interface Window {
@@ -156,22 +155,23 @@ export default function Home() {
   const [syncBusy, setSyncBusy] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [desktopState, setDesktopState] = useState<DesktopState>({ autoStart: true, alwaysOnTop: false, sizePreset: 'standard', opacity: 1 });
-  const [qqConfigured, setQqConfigured] = useState(true);
-  const [qqUser, setQqUser] = useState<QQUser | null>(null);
-  const [qqSyncSecret, setQqSyncSecret] = useState('');
-  const [qqLoading, setQqLoading] = useState(true);
+  const [accountUser, setAccountUser] = useState<AccountUser | null>(null);
+  const [accountSyncSecret, setAccountSyncSecret] = useState('');
+  const [accountLoading, setAccountLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authConfirm, setAuthConfirm] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
   const suppressNextUpload = useRef(false);
-  const qqConnectedOnce = useRef(false);
+  const accountConnectedOnce = useRef(false);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('daylight-tasks');
-    if (saved) {
-      try { setTasks(JSON.parse(saved) as Task[]); } catch { setTasks(starterTasks); }
-    }
     const savedOpacity = Number(window.localStorage.getItem('daylight-opacity'));
     if (savedOpacity >= 45 && savedOpacity <= 100) setOpacity(savedOpacity);
+    window.localStorage.removeItem('daylight-tasks');
     window.localStorage.removeItem('daylight-sync-secret');
-    setLoaded(true);
   }, []);
   useEffect(() => {
     const bridge = window.daylightDesktop;
@@ -182,19 +182,29 @@ export default function Home() {
     return () => document.documentElement.classList.remove('desktop-app');
   }, []);
   useEffect(() => {
-    fetch('/api/auth/qq/session', { cache: 'no-store' })
+    fetch('/api/auth/session', { cache: 'no-store' })
       .then((response) => response.json())
-      .then((result: { configured: boolean; user: QQUser | null; syncSecret?: string }) => {
-        setQqConfigured(result.configured);
-        setQqUser(result.user);
-        if (result.syncSecret) setQqSyncSecret(result.syncSecret);
+      .then((result: { user: AccountUser | null; syncSecret?: string }) => {
+        setAccountUser(result.user);
+        if (result.syncSecret) setAccountSyncSecret(result.syncSecret);
       })
-      .catch(() => setQqConfigured(false))
-      .finally(() => setQqLoading(false));
+      .catch(() => setAuthError('暂时无法连接服务器'))
+      .finally(() => setAccountLoading(false));
   }, []);
   useEffect(() => {
-    if (loaded) window.localStorage.setItem('daylight-tasks', JSON.stringify(tasks));
-  }, [tasks, loaded]);
+    if (!accountUser) return;
+    const saved = window.localStorage.getItem(`chaoqun-tasks:${accountUser.id}`);
+    if (saved) {
+      try { setTasks(JSON.parse(saved) as Task[]); } catch { setTasks(starterTasks); }
+    } else {
+      setTasks(starterTasks);
+    }
+    accountConnectedOnce.current = false;
+    setLoaded(true);
+  }, [accountUser]);
+  useEffect(() => {
+    if (loaded && accountUser) window.localStorage.setItem(`chaoqun-tasks:${accountUser.id}`, JSON.stringify(tasks));
+  }, [tasks, loaded, accountUser]);
   useEffect(() => {
     if (!loaded) return;
     window.localStorage.setItem('daylight-opacity', String(opacity));
@@ -211,7 +221,7 @@ export default function Home() {
     if (!response.ok) throw new Error('云端保存失败');
   };
 
-  const connectWithSecret = async (secret: string, remember = true) => {
+  const connectWithSecret = async (secret: string) => {
     if (secret.length < 8) {
       setSyncStatus('同步密钥至少需要 8 个字符');
       return;
@@ -243,13 +253,13 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (!loaded || !qqSyncSecret || qqConnectedOnce.current) return;
-    qqConnectedOnce.current = true;
-    setSyncSecret(qqSyncSecret);
+    if (!loaded || !accountSyncSecret || accountConnectedOnce.current) return;
+    accountConnectedOnce.current = true;
+    setSyncSecret(accountSyncSecret);
     setSyncEnabled(true);
-    setSyncStatus('QQ 已登录，正在同步账号数据…');
-    connectWithSecret(qqSyncSecret, false);
-  }, [loaded, qqSyncSecret]);
+    setSyncStatus('账号已登录，正在同步数据…');
+    connectWithSecret(accountSyncSecret);
+  }, [loaded, accountSyncSecret]);
 
   useEffect(() => {
     if (!loaded || !syncEnabled || !syncReady || !syncSecret) return;
@@ -266,15 +276,47 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [tasks, loaded, syncEnabled, syncReady, syncSecret]);
 
-  const logoutQQ = async () => {
-    await fetch('/api/auth/qq/logout', { method: 'POST' });
-    window.localStorage.removeItem('daylight-sync-secret');
-    setQqUser(null);
-    setQqSyncSecret('');
+  const submitAuth = async (event: FormEvent) => {
+    event.preventDefault();
+    setAuthError('');
+    if (authMode === 'register' && authPassword !== authConfirm) {
+      setAuthError('两次输入的密码不一致');
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const response = await fetch(`/api/auth/${authMode}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: authUsername, password: authPassword }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || '操作失败');
+      const sessionResponse = await fetch('/api/auth/session', { cache: 'no-store' });
+      const session = await sessionResponse.json() as { user: AccountUser; syncSecret: string };
+      setAccountUser(session.user);
+      setAccountSyncSecret(session.syncSecret);
+      setAuthPassword('');
+      setAuthConfirm('');
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : '操作失败，请稍后重试');
+    } finally {
+      setAuthBusy(false);
+      setAccountLoading(false);
+    }
+  };
+
+  const logoutAccount = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setAccountUser(null);
+    setAccountSyncSecret('');
     setSyncEnabled(false);
     setSyncReady(false);
     setSyncSecret('');
-    setSyncStatus('QQ 已退出，本机待办仍然保留');
+    setLoaded(false);
+    setTasks(starterTasks);
+    setSettingsOpen(false);
+    setSyncStatus('账号已退出');
   };
 
   const changeDesktopSize = async (preset: DesktopSize) => {
@@ -374,21 +416,26 @@ export default function Home() {
     setDraftDate(keyFor(next));
   };
 
-  if (qqLoading || !qqUser) {
+  if (accountLoading || !accountUser) {
     return (
       <main className="login-gate">
         <section className="login-card">
           {isDesktop && <div className="login-window-bar"><span>chaoquncalender</span><div className="desktop-window-buttons"><button type="button" onClick={() => window.daylightDesktop?.minimize()} aria-label="最小化"><Minimize2 /></button><button type="button" onClick={() => window.daylightDesktop?.close()} aria-label="关闭"><X /></button></div></div>}
           <div className="login-logo"><CalendarDays /></div>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-200/60">chaoquncalender</p>
-          <h1 className="mt-2 text-2xl font-bold text-white">用 QQ 登录日历</h1>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">登录后才能查看和同步你的待办，不再需要 ChatGPT 验证。</p>
-          {qqLoading ? <div className="mt-7 flex items-center gap-2 text-sm text-cyan-100/70"><RefreshCw className="size-4 animate-spin" />正在检查登录状态…</div> : qqConfigured ? (
-            <Button type="button" className="mt-7 h-12 w-full max-w-xs bg-[#12b7f5] text-base hover:bg-[#0da7e1]" onClick={() => window.location.assign('/api/auth/qq/start')}><QrCode /> 使用手机 QQ 扫码登录</Button>
-          ) : (
-            <div className="mt-7 max-w-sm rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-left text-sm leading-6 text-amber-100">QQ 登录尚未启用。请先配置 QQ 互联 AppID 与 AppKey。</div>
+          <h1 className="mt-2 text-2xl font-bold text-white">{authMode === 'login' ? '登录你的日历' : '创建日历账号'}</h1>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">在当前服务器注册账号，多台电脑登录同一账号即可同步待办。</p>
+          {accountLoading ? <div className="mt-7 flex items-center gap-2 text-sm text-cyan-100/70"><RefreshCw className="size-4 animate-spin" />正在检查登录状态…</div> : (
+            <form className="mt-6 w-full max-w-xs space-y-3" onSubmit={submitAuth}>
+              <Input value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} autoComplete="username" placeholder="用户名（3–32 个字符）" aria-label="用户名" className="h-11 border-white/15 bg-white/8 text-white placeholder:text-white/35" />
+              <Input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} placeholder="密码（至少 8 个字符）" aria-label="密码" className="h-11 border-white/15 bg-white/8 text-white placeholder:text-white/35" />
+              {authMode === 'register' && <Input type="password" value={authConfirm} onChange={(event) => setAuthConfirm(event.target.value)} autoComplete="new-password" placeholder="再次输入密码" aria-label="确认密码" className="h-11 border-white/15 bg-white/8 text-white placeholder:text-white/35" />}
+              {authError && <p className="rounded-xl bg-red-400/10 px-3 py-2 text-left text-xs leading-5 text-red-200">{authError}</p>}
+              <Button type="submit" disabled={authBusy} className="h-11 w-full bg-[#12b7f5] text-base hover:bg-[#0da7e1]">{authBusy && <RefreshCw className="animate-spin" />}{authMode === 'login' ? '登录并同步' : '注册并登录'}</Button>
+              <button type="button" className="text-sm text-cyan-200/75 hover:text-cyan-100" onClick={() => { setAuthMode((mode) => mode === 'login' ? 'register' : 'login'); setAuthError(''); }}>{authMode === 'login' ? '没有账号？立即注册' : '已有账号？返回登录'}</button>
+            </form>
           )}
-          <p className="mt-5 text-xs text-slate-500">你的登录状态由 chaoquncalender 安全保存。</p>
+          <p className="mt-5 text-xs text-slate-500">密码经过加盐哈希保存，服务器不会保存明文密码。</p>
         </section>
       </main>
     );
@@ -468,16 +515,10 @@ export default function Home() {
 
             <div className="settings-block">
               <div className="flex items-start gap-3">
-                <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#12b7f5] text-white">{qqUser?.avatar ? <img src={qqUser.avatar} alt="QQ头像" className="size-full object-cover" /> : <QrCode className="size-5" />}</div>
-                <div className="min-w-0 flex-1"><p className="font-semibold text-slate-800">QQ 扫码登录</p><p className="text-xs leading-5 text-slate-500">登录后自动同步不同电脑上的待办。</p></div>
+                <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#12b7f5] text-white"><UserRound className="size-5" /></div>
+                <div className="min-w-0 flex-1"><p className="font-semibold text-slate-800">日历账号</p><p className="text-xs leading-5 text-slate-500">登录后自动同步不同电脑上的待办。</p></div>
               </div>
-              {qqLoading ? <p className="mt-3 text-xs text-slate-500">正在检查登录状态…</p> : qqUser ? (
-                <div className="mt-3 flex items-center justify-between rounded-xl bg-white px-3 py-2"><span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700"><UserRound className="size-4" /><span className="truncate">{qqUser.nickname}</span></span><Button type="button" variant="ghost" size="sm" onClick={logoutQQ}>退出</Button></div>
-              ) : qqConfigured ? (
-                <Button type="button" className="mt-3 w-full bg-[#12b7f5] hover:bg-[#0da7e1]" onClick={() => window.location.assign('/api/auth/qq/start')}><QrCode /> 使用手机 QQ 扫码登录</Button>
-              ) : (
-                <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">QQ 登录待配置：需要在 QQ 互联申请网站应用并设置 AppID、AppKey 与回调地址。</p>
-              )}
+              <div className="mt-3 flex items-center justify-between rounded-xl bg-white px-3 py-2"><span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700"><UserRound className="size-4" /><span className="truncate">{accountUser.username}</span></span><Button type="button" variant="ghost" size="sm" onClick={logoutAccount}>退出</Button></div>
             </div>
 
             {isDesktop && <div className="settings-block">
@@ -493,9 +534,9 @@ export default function Home() {
             </div>
 
             <div className="settings-block">
-              <div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-primary">{syncReady ? <ShieldCheck className="size-5" /> : <Cloud className="size-5" />}</div><div><p className="font-semibold text-slate-800">QQ 账号加密同步</p><p className="text-xs leading-5 text-slate-500">同一个 QQ 登录不同电脑后，会自动读取和更新同一份待办。</p></div></div>
+              <div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-primary">{syncReady ? <ShieldCheck className="size-5" /> : <Cloud className="size-5" />}</div><div><p className="font-semibold text-slate-800">账号加密同步</p><p className="text-xs leading-5 text-slate-500">同一个账号登录不同电脑后，会自动读取和更新同一份待办。</p></div></div>
               <p className={`mt-3 flex items-center gap-1.5 text-xs ${syncReady ? 'text-emerald-600' : 'text-slate-500'}`}><Cloud className="size-3.5" />{syncStatus}</p>
-              <Button type="button" onClick={() => connectWithSecret(qqSyncSecret, false)} disabled={syncBusy || !qqSyncSecret} className="mt-4 w-full">{syncBusy ? <RefreshCw className="animate-spin" /> : <Cloud />} 立即同步</Button>
+              <Button type="button" onClick={() => connectWithSecret(accountSyncSecret)} disabled={syncBusy || !accountSyncSecret} className="mt-4 w-full">{syncBusy ? <RefreshCw className="animate-spin" /> : <Cloud />} 立即同步</Button>
               <p className="mt-3 text-[11px] leading-4 text-slate-400">同步数据仍然经过端到端加密，账号退出后将停止访问云端内容。</p>
             </div>
           </section>
