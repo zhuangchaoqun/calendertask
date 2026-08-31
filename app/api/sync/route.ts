@@ -1,8 +1,8 @@
 import { env } from 'cloudflare:workers';
 import { createSyncProfilesTable } from '@/db/schema';
+import { qqConfig, qqSyncSecret, readQQSession } from '@/lib/qq-auth';
 
 const MAX_PAYLOAD_BYTES = 512_000;
-const KEY_PATTERN = /^[a-f0-9]{64}$/;
 
 function database() {
   return (env as unknown as { DB: D1Database }).DB;
@@ -12,9 +12,18 @@ async function ensureSchema(db: D1Database) {
   await db.prepare(createSyncProfilesTable).run();
 }
 
+async function accountKey(request: Request) {
+  const config = qqConfig();
+  const session = await readQQSession(request);
+  if (!config || !session) return null;
+  const secret = await qqSyncSecret(session.openid, config.sessionSecret);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export async function GET(request: Request) {
-  const key = new URL(request.url).searchParams.get('key') ?? '';
-  if (!KEY_PATTERN.test(key)) return Response.json({ error: '无效的同步密钥' }, { status: 400 });
+  const key = await accountKey(request);
+  if (!key) return Response.json({ error: '请先使用 QQ 登录' }, { status: 401 });
 
   const db = database();
   await ensureSchema(db);
@@ -32,10 +41,10 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const body = await request.json() as { key?: string; payload?: string };
-  const key = body.key ?? '';
+  const key = await accountKey(request);
+  if (!key) return Response.json({ error: '请先使用 QQ 登录' }, { status: 401 });
+  const body = await request.json() as { payload?: string };
   const payload = body.payload ?? '';
-  if (!KEY_PATTERN.test(key)) return Response.json({ error: '无效的同步密钥' }, { status: 400 });
   if (!payload || new TextEncoder().encode(payload).length > MAX_PAYLOAD_BYTES) {
     return Response.json({ error: '同步内容为空或过大' }, { status: 400 });
   }

@@ -10,7 +10,6 @@ import {
   ChevronRight,
   CircleCheck,
   Cloud,
-  CloudOff,
   Clock3,
   Copy,
   Ellipsis,
@@ -110,11 +109,6 @@ const base64ToBytes = (value: string) => {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 };
 
-async function syncKeyHash(secret: string) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 async function encryptionKey(secret: string) {
   const source = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
@@ -176,12 +170,7 @@ export default function Home() {
     }
     const savedOpacity = Number(window.localStorage.getItem('daylight-opacity'));
     if (savedOpacity >= 45 && savedOpacity <= 100) setOpacity(savedOpacity);
-    const savedSecret = window.localStorage.getItem('daylight-sync-secret');
-    if (savedSecret) {
-      setSyncSecret(savedSecret);
-      setSyncEnabled(true);
-      setSyncStatus('已记住同步密钥，点击同步即可连接');
-    }
+    window.localStorage.removeItem('daylight-sync-secret');
     setLoaded(true);
   }, []);
   useEffect(() => {
@@ -213,12 +202,11 @@ export default function Home() {
   }, [opacity, loaded]);
 
   const uploadTasks = async (items: Task[], secret: string) => {
-    const key = await syncKeyHash(secret);
     const payload = await encryptTasks(items, secret);
     const response = await fetch('/api/sync', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ key, payload }),
+      body: JSON.stringify({ payload }),
     });
     if (!response.ok) throw new Error('云端保存失败');
   };
@@ -231,8 +219,7 @@ export default function Home() {
     setSyncBusy(true);
     setSyncStatus('正在连接云端…');
     try {
-      const key = await syncKeyHash(secret);
-      const response = await fetch(`/api/sync?key=${key}`, { cache: 'no-store' });
+      const response = await fetch('/api/sync', { cache: 'no-store' });
       if (!response.ok) throw new Error('无法连接云端');
       const result = await response.json() as { found: boolean; payload?: string };
       if (result.found && result.payload) {
@@ -244,7 +231,6 @@ export default function Home() {
         await uploadTasks(tasks, secret);
         setSyncStatus(`同步空间已创建，已上传 ${tasks.length} 项待办`);
       }
-      if (remember) window.localStorage.setItem('daylight-sync-secret', secret);
       setSyncSecret(secret);
       setSyncEnabled(true);
       setSyncReady(true);
@@ -255,8 +241,6 @@ export default function Home() {
       setSyncBusy(false);
     }
   };
-
-  const connectSync = async () => connectWithSecret(syncSecret.trim());
 
   useEffect(() => {
     if (!loaded || !qqSyncSecret || qqConnectedOnce.current) return;
@@ -281,14 +265,6 @@ export default function Home() {
     }, 700);
     return () => window.clearTimeout(timer);
   }, [tasks, loaded, syncEnabled, syncReady, syncSecret]);
-
-  const disableSync = () => {
-    window.localStorage.removeItem('daylight-sync-secret');
-    setSyncEnabled(false);
-    setSyncReady(false);
-    setSyncSecret('');
-    setSyncStatus('已停用云同步，本机数据仍然保留');
-  };
 
   const logoutQQ = async () => {
     await fetch('/api/auth/qq/logout', { method: 'POST' });
@@ -398,6 +374,26 @@ export default function Home() {
     setDraftDate(keyFor(next));
   };
 
+  if (qqLoading || !qqUser) {
+    return (
+      <main className="login-gate">
+        <section className="login-card">
+          {isDesktop && <div className="login-window-bar"><span>chaoquncalender</span><div className="desktop-window-buttons"><button type="button" onClick={() => window.daylightDesktop?.minimize()} aria-label="最小化"><Minimize2 /></button><button type="button" onClick={() => window.daylightDesktop?.close()} aria-label="关闭"><X /></button></div></div>}
+          <div className="login-logo"><CalendarDays /></div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-200/60">chaoquncalender</p>
+          <h1 className="mt-2 text-2xl font-bold text-white">用 QQ 登录日历</h1>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">登录后才能查看和同步你的待办，不再需要 ChatGPT 验证。</p>
+          {qqLoading ? <div className="mt-7 flex items-center gap-2 text-sm text-cyan-100/70"><RefreshCw className="size-4 animate-spin" />正在检查登录状态…</div> : qqConfigured ? (
+            <Button type="button" className="mt-7 h-12 w-full max-w-xs bg-[#12b7f5] text-base hover:bg-[#0da7e1]" onClick={() => window.location.assign('/api/auth/qq/start')}><QrCode /> 使用手机 QQ 扫码登录</Button>
+          ) : (
+            <div className="mt-7 max-w-sm rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-left text-sm leading-6 text-amber-100">QQ 登录尚未启用。请先配置 QQ 互联 AppID 与 AppKey。</div>
+          )}
+          <p className="mt-5 text-xs text-slate-500">你的登录状态由 chaoquncalender 安全保存。</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#07101e] p-2 text-white sm:p-3 lg:p-4">
       <section style={{ opacity: isDesktop ? 1 : opacity / 100 }} className="calendar-shell mx-auto min-h-[calc(100vh-16px)] max-w-[1700px] overflow-hidden rounded-[24px] border border-white/10 bg-[#102844] shadow-[0_30px_90px_rgba(0,0,0,0.35)] transition-opacity sm:min-h-[calc(100vh-24px)] lg:min-h-[calc(100vh-32px)]">
@@ -497,11 +493,10 @@ export default function Home() {
             </div>
 
             <div className="settings-block">
-              <div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-primary">{syncReady ? <ShieldCheck className="size-5" /> : <Cloud className="size-5" />}</div><div><p className="font-semibold text-slate-800">跨设备加密同步</p><p className="text-xs leading-5 text-slate-500">在其他电脑输入相同密钥，即可读取和自动更新同一份待办。</p></div></div>
-              <label className="mt-4 block"><span className="mb-1.5 block text-xs font-semibold text-slate-600">同步密钥</span><Input type="password" value={syncSecret} onChange={(event) => setSyncSecret(event.target.value)} placeholder="至少 8 个字符，请妥善保存" className="h-10" /></label>
-              <p className={`mt-2 flex items-center gap-1.5 text-xs ${syncReady ? 'text-emerald-600' : 'text-slate-500'}`}>{syncReady ? <Cloud className="size-3.5" /> : <CloudOff className="size-3.5" />}{syncStatus}</p>
-              <div className="mt-4 flex gap-2"><Button type="button" onClick={connectSync} disabled={syncBusy} className="flex-1">{syncBusy ? <RefreshCw className="animate-spin" /> : <Cloud />} {syncReady ? '立即同步' : '连接并同步'}</Button>{syncEnabled && <Button type="button" variant="outline" onClick={disableSync}>停用</Button>}</div>
-              <p className="mt-3 text-[11px] leading-4 text-slate-400">密钥只保存在你的设备中；云端只保存加密后的待办。忘记密钥后无法恢复云端内容。</p>
+              <div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-primary">{syncReady ? <ShieldCheck className="size-5" /> : <Cloud className="size-5" />}</div><div><p className="font-semibold text-slate-800">QQ 账号加密同步</p><p className="text-xs leading-5 text-slate-500">同一个 QQ 登录不同电脑后，会自动读取和更新同一份待办。</p></div></div>
+              <p className={`mt-3 flex items-center gap-1.5 text-xs ${syncReady ? 'text-emerald-600' : 'text-slate-500'}`}><Cloud className="size-3.5" />{syncStatus}</p>
+              <Button type="button" onClick={() => connectWithSecret(qqSyncSecret, false)} disabled={syncBusy || !qqSyncSecret} className="mt-4 w-full">{syncBusy ? <RefreshCw className="animate-spin" /> : <Cloud />} 立即同步</Button>
+              <p className="mt-3 text-[11px] leading-4 text-slate-400">同步数据仍然经过端到端加密，账号退出后将停止访问云端内容。</p>
             </div>
           </section>
         </div>

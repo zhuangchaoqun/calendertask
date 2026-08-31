@@ -58,6 +58,48 @@ html.desktop-app main {
   background: transparent !important;
 }
 
+.login-gate {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: radial-gradient(circle at 50% 15%, #173c62 0%, #091827 48%, #050b13 100%);
+  padding: 1rem;
+  color: white;
+}
+
+.login-card {
+  position: relative;
+  display: flex;
+  width: min(100%, 480px);
+  min-height: 520px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 28px;
+  background: rgb(10 31 51 / 88%);
+  padding: 3rem 2rem;
+  text-align: center;
+  box-shadow: 0 30px 100px rgb(0 0 0 / 48%);
+  backdrop-filter: blur(24px);
+}
+
+.login-logo {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 1.5rem;
+  place-items: center;
+  border-radius: 22px;
+  background: linear-gradient(145deg, #15c5f3, #2f55e7);
+  box-shadow: 0 16px 38px rgb(19 183 245 / 28%);
+}
+
+.login-logo svg { width: 34px; height: 34px; }
+.login-window-bar { position: absolute; inset: 0 0 auto; display: flex; height: 48px; align-items: center; justify-content: space-between; padding: 0 10px 0 18px; color: rgb(255 255 255 / 55%); font-size: 11px; font-weight: 700; letter-spacing: .12em; -webkit-app-region: drag; }
+.login-window-bar button { -webkit-app-region: no-drag; }
+
 :root {
   --background: #f6f7fb;
   --foreground: #18202f;
