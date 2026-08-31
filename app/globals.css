@@ -213,6 +213,12 @@ body {
   .native-menu-panel button svg { @apply size-4 shrink-0; }
   .native-menu-label { @apply px-2.5 py-1.5 text-xs font-semibold text-slate-400; }
   .native-menu-panel hr { @apply my-1 border-slate-200; }
+
+  .settings-panel {
+    @apply w-full max-w-[460px] rounded-[20px] border border-slate-300 bg-white p-4 text-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.42)] sm:p-5;
+  }
+  .settings-block { @apply mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4; }
+  .opacity-slider { @apply mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-[#2f55e7]; }
 }
 
 @media (max-width: 639px) {

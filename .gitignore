@@ -36,3 +36,7 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/desktop/node_modules/
+/desktop/dist/
+/desktop/release/
+/installer/

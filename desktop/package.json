@@ -1,0 +1,29 @@
+{
+  "name": "daylight-calendar-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daylight Calendar Windows desktop app",
+  "main": "main.cjs",
+  "scripts": {
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "site.chatgpt.zhuangchaoqun.daylightcalendar",
+    "productName": "Daylight Calendar",
+    "directories": { "output": "release" },
+    "artifactName": "Daylight-Calendar-Setup-${version}.${ext}",
+    "files": ["main.cjs", "preload.cjs"],
+    "win": { "target": "nsis" },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Daylight Calendar"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   BellRing,
@@ -9,14 +9,19 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleCheck,
+  Cloud,
+  CloudOff,
   Clock3,
   Copy,
   Ellipsis,
   Menu,
   Palette,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
+  Settings2,
+  ShieldCheck,
   Trash2,
   X,
 } from 'lucide-react';
@@ -35,6 +40,12 @@ type Task = {
   color: TaskColor;
   reminder?: boolean;
 };
+
+declare global {
+  interface Window {
+    daylightDesktop?: { setOpacity: (value: number) => void };
+  }
+}
 
 const DAYS = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
 const COLORS: { value: TaskColor; label: string; className: string }[] = [
@@ -71,6 +82,46 @@ function buildMonthGrid(anchor: Date) {
   });
 }
 
+const bytesToBase64 = (bytes: Uint8Array) => {
+  let binary = '';
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+};
+
+const base64ToBytes = (value: string) => {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+};
+
+async function syncKeyHash(secret: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function encryptionKey(secret: string) {
+  const source = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('daylight-calendar-sync-v1'), iterations: 150_000 },
+    source,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+async function encryptTasks(tasks: Task[], secret: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await encryptionKey(secret), new TextEncoder().encode(JSON.stringify(tasks)));
+  return JSON.stringify({ version: 1, iv: bytesToBase64(iv), data: bytesToBase64(new Uint8Array(encrypted)) });
+}
+
+async function decryptTasks(payload: string, secret: string) {
+  const parsed = JSON.parse(payload) as { version: number; iv: string; data: string };
+  if (parsed.version !== 1) throw new Error('不支持的同步数据版本');
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: base64ToBytes(parsed.iv) }, await encryptionKey(secret), base64ToBytes(parsed.data));
+  return JSON.parse(new TextDecoder().decode(decrypted)) as Task[];
+}
+
 export default function Home() {
   const today = useMemo(() => new Date(2026, 7, 31), []);
   const [viewDate, setViewDate] = useState(today);
@@ -85,17 +136,106 @@ export default function Home() {
   const [draftColor, setDraftColor] = useState<TaskColor>('blue');
   const [draftCompleted, setDraftCompleted] = useState(false);
   const [draftReminder, setDraftReminder] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [opacity, setOpacity] = useState(100);
+  const [syncSecret, setSyncSecret] = useState('');
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  const [syncReady, setSyncReady] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('尚未启用云同步');
+  const [syncBusy, setSyncBusy] = useState(false);
+  const suppressNextUpload = useRef(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('daylight-tasks');
     if (saved) {
       try { setTasks(JSON.parse(saved) as Task[]); } catch { setTasks(starterTasks); }
     }
+    const savedOpacity = Number(window.localStorage.getItem('daylight-opacity'));
+    if (savedOpacity >= 45 && savedOpacity <= 100) setOpacity(savedOpacity);
+    const savedSecret = window.localStorage.getItem('daylight-sync-secret');
+    if (savedSecret) {
+      setSyncSecret(savedSecret);
+      setSyncEnabled(true);
+      setSyncStatus('已记住同步密钥，点击同步即可连接');
+    }
     setLoaded(true);
   }, []);
   useEffect(() => {
     if (loaded) window.localStorage.setItem('daylight-tasks', JSON.stringify(tasks));
   }, [tasks, loaded]);
+  useEffect(() => {
+    if (!loaded) return;
+    window.localStorage.setItem('daylight-opacity', String(opacity));
+    window.daylightDesktop?.setOpacity(opacity / 100);
+  }, [opacity, loaded]);
+
+  const uploadTasks = async (items: Task[], secret: string) => {
+    const key = await syncKeyHash(secret);
+    const payload = await encryptTasks(items, secret);
+    const response = await fetch('/api/sync', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key, payload }),
+    });
+    if (!response.ok) throw new Error('云端保存失败');
+  };
+
+  const connectSync = async () => {
+    const secret = syncSecret.trim();
+    if (secret.length < 8) {
+      setSyncStatus('同步密钥至少需要 8 个字符');
+      return;
+    }
+    setSyncBusy(true);
+    setSyncStatus('正在连接云端…');
+    try {
+      const key = await syncKeyHash(secret);
+      const response = await fetch(`/api/sync?key=${key}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('无法连接云端');
+      const result = await response.json() as { found: boolean; payload?: string };
+      if (result.found && result.payload) {
+        const remoteTasks = await decryptTasks(result.payload, secret);
+        suppressNextUpload.current = true;
+        setTasks(remoteTasks);
+        setSyncStatus(`同步完成，已获取 ${remoteTasks.length} 项待办`);
+      } else {
+        await uploadTasks(tasks, secret);
+        setSyncStatus(`同步空间已创建，已上传 ${tasks.length} 项待办`);
+      }
+      window.localStorage.setItem('daylight-sync-secret', secret);
+      setSyncSecret(secret);
+      setSyncEnabled(true);
+      setSyncReady(true);
+    } catch {
+      setSyncReady(false);
+      setSyncStatus('同步失败，请确认密钥或网络后重试');
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!loaded || !syncEnabled || !syncReady || !syncSecret) return;
+    if (suppressNextUpload.current) {
+      suppressNextUpload.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSyncStatus('正在自动同步…');
+      uploadTasks(tasks, syncSecret)
+        .then(() => setSyncStatus(`已同步 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`))
+        .catch(() => setSyncStatus('自动同步失败，将保留本机数据'));
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [tasks, loaded, syncEnabled, syncReady, syncSecret]);
+
+  const disableSync = () => {
+    window.localStorage.removeItem('daylight-sync-secret');
+    setSyncEnabled(false);
+    setSyncReady(false);
+    setSyncSecret('');
+    setSyncStatus('已停用云同步，本机数据仍然保留');
+  };
 
   const monthDays = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
   const visibleTasks = tasks.filter((task) => task.title.toLowerCase().includes(search.trim().toLowerCase()));
@@ -181,7 +321,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#07101e] p-2 text-white sm:p-3 lg:p-4">
-      <section className="mx-auto min-h-[calc(100vh-16px)] max-w-[1700px] overflow-hidden rounded-[24px] border border-white/10 bg-[#102844] shadow-[0_30px_90px_rgba(0,0,0,0.35)] sm:min-h-[calc(100vh-24px)] lg:min-h-[calc(100vh-32px)]">
+      <section style={{ opacity: opacity / 100 }} className="mx-auto min-h-[calc(100vh-16px)] max-w-[1700px] overflow-hidden rounded-[24px] border border-white/10 bg-[#102844] shadow-[0_30px_90px_rgba(0,0,0,0.35)] transition-opacity sm:min-h-[calc(100vh-24px)] lg:min-h-[calc(100vh-32px)]">
         <header className="calendar-topbar">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100/60">Daylight Calendar</p>
@@ -202,6 +342,7 @@ export default function Home() {
                 <p className="native-menu-label">{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</p>
                 <button type="button" onClick={() => openNew(today)}><Plus /> 新建今日待办</button>
                 <button type="button" onClick={() => setSearch('')}><RotateCcw /> 清除搜索</button>
+                <button type="button" onClick={() => setSettingsOpen(true)}><Settings2 /> 设置与同步</button>
               </div>
             </details>
           </div>
@@ -239,6 +380,32 @@ export default function Home() {
           })}
         </div>
       </section>
+
+      {settingsOpen && (
+        <div className="editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
+          <section className="settings-panel" aria-label="设置与同步">
+            <div className="editor-heading">
+              <span className="editor-color editor-color-blue" />
+              <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Daylight</p><h2 className="text-lg font-bold text-slate-900">设置与云同步</h2></div>
+              <Button type="button" variant="ghost" size="icon-sm" onClick={() => setSettingsOpen(false)} aria-label="关闭设置"><X /></Button>
+            </div>
+
+            <div className="settings-block">
+              <div className="flex items-center justify-between"><div><p className="font-semibold text-slate-800">界面透明度</p><p className="text-xs text-slate-500">桌面版中也会同步调整窗口透明度</p></div><strong className="text-sm text-primary">{opacity}%</strong></div>
+              <input className="opacity-slider" type="range" min="45" max="100" step="5" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} aria-label="界面透明度" />
+              <div className="flex justify-between text-[11px] text-slate-400"><span>更透明</span><span>不透明</span></div>
+            </div>
+
+            <div className="settings-block">
+              <div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-primary">{syncReady ? <ShieldCheck className="size-5" /> : <Cloud className="size-5" />}</div><div><p className="font-semibold text-slate-800">跨设备加密同步</p><p className="text-xs leading-5 text-slate-500">在其他电脑输入相同密钥，即可读取和自动更新同一份待办。</p></div></div>
+              <label className="mt-4 block"><span className="mb-1.5 block text-xs font-semibold text-slate-600">同步密钥</span><Input type="password" value={syncSecret} onChange={(event) => setSyncSecret(event.target.value)} placeholder="至少 8 个字符，请妥善保存" className="h-10" /></label>
+              <p className={`mt-2 flex items-center gap-1.5 text-xs ${syncReady ? 'text-emerald-600' : 'text-slate-500'}`}>{syncReady ? <Cloud className="size-3.5" /> : <CloudOff className="size-3.5" />}{syncStatus}</p>
+              <div className="mt-4 flex gap-2"><Button type="button" onClick={connectSync} disabled={syncBusy} className="flex-1">{syncBusy ? <RefreshCw className="animate-spin" /> : <Cloud />} {syncReady ? '立即同步' : '连接并同步'}</Button>{syncEnabled && <Button type="button" variant="outline" onClick={disableSync}>停用</Button>}</div>
+              <p className="mt-3 text-[11px] leading-4 text-slate-400">密钥只保存在你的设备中；云端只保存加密后的待办。忘记密钥后无法恢复云端内容。</p>
+            </div>
+          </section>
+        </div>
+      )}
 
       {editorOpen && (
         <div className="editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeEditor(); }}>
