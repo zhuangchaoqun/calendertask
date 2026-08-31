@@ -1,7 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('daylightDesktop', {
-  setOpacity(value) {
-    ipcRenderer.send('daylight:set-opacity', value);
-  }
+  isDesktop: true,
+  getState: () => ipcRenderer.invoke('chaoqun:get-desktop-state'),
+  setOpacity: (value) => ipcRenderer.send('chaoqun:set-opacity', value),
+  setAutoStart: (enabled) => ipcRenderer.invoke('chaoqun:set-auto-start', enabled),
+  setSize: (preset) => ipcRenderer.invoke('chaoqun:set-size', preset),
+  setAlwaysOnTop: (enabled) => ipcRenderer.invoke('chaoqun:set-always-on-top', enabled),
+  minimize: () => ipcRenderer.send('chaoqun:minimize'),
+  close: () => ipcRenderer.send('chaoqun:close'),
 });

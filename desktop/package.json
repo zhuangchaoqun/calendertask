@@ -1,8 +1,8 @@
 {
-  "name": "daylight-calendar-desktop",
-  "version": "1.0.0",
+  "name": "chaoquncalender",
+  "version": "2.0.0",
   "private": true,
-  "description": "Daylight Calendar Windows desktop app",
+  "description": "chaoquncalender Windows 11 desktop calendar widget",
   "main": "main.cjs",
   "scripts": {
     "dist": "electron-builder --win nsis"
@@ -12,10 +12,10 @@
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "site.chatgpt.zhuangchaoqun.daylightcalendar",
-    "productName": "Daylight Calendar",
+    "appId": "com.zhuangchaoqun.chaoquncalender",
+    "productName": "chaoquncalender",
     "directories": { "output": "release" },
-    "artifactName": "Daylight-Calendar-Setup-${version}.${ext}",
+    "artifactName": "chaoquncalender-Setup-${version}.${ext}",
     "files": ["main.cjs", "preload.cjs"],
     "win": { "target": "nsis" },
     "nsis": {
@@ -23,7 +23,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Daylight Calendar"
+      "shortcutName": "chaoquncalender"
     }
   }
 }

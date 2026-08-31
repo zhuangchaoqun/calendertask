@@ -15,14 +15,19 @@ import {
   Copy,
   Ellipsis,
   Menu,
+  Minimize2,
   Palette,
+  Pin,
+  PinOff,
   Plus,
+  QrCode,
   RefreshCw,
   RotateCcw,
   Search,
   Settings2,
   ShieldCheck,
   Trash2,
+  UserRound,
   X,
 } from 'lucide-react';
 
@@ -40,10 +45,22 @@ type Task = {
   color: TaskColor;
   reminder?: boolean;
 };
+type DesktopSize = 'compact' | 'standard' | 'large';
+type DesktopState = { autoStart: boolean; alwaysOnTop: boolean; sizePreset: DesktopSize; opacity: number };
+type QQUser = { nickname: string; avatar?: string };
 
 declare global {
   interface Window {
-    daylightDesktop?: { setOpacity: (value: number) => void };
+    daylightDesktop?: {
+      isDesktop: boolean;
+      getState: () => Promise<DesktopState>;
+      setOpacity: (value: number) => void;
+      setAutoStart: (enabled: boolean) => Promise<boolean>;
+      setSize: (preset: DesktopSize) => Promise<DesktopState>;
+      setAlwaysOnTop: (enabled: boolean) => Promise<boolean>;
+      minimize: () => void;
+      close: () => void;
+    };
   }
 }
 
@@ -143,7 +160,14 @@ export default function Home() {
   const [syncReady, setSyncReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState('尚未启用云同步');
   const [syncBusy, setSyncBusy] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [desktopState, setDesktopState] = useState<DesktopState>({ autoStart: true, alwaysOnTop: false, sizePreset: 'standard', opacity: 1 });
+  const [qqConfigured, setQqConfigured] = useState(true);
+  const [qqUser, setQqUser] = useState<QQUser | null>(null);
+  const [qqSyncSecret, setQqSyncSecret] = useState('');
+  const [qqLoading, setQqLoading] = useState(true);
   const suppressNextUpload = useRef(false);
+  const qqConnectedOnce = useRef(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('daylight-tasks');
@@ -159,6 +183,25 @@ export default function Home() {
       setSyncStatus('已记住同步密钥，点击同步即可连接');
     }
     setLoaded(true);
+  }, []);
+  useEffect(() => {
+    const bridge = window.daylightDesktop;
+    if (!bridge?.isDesktop) return;
+    setIsDesktop(true);
+    document.documentElement.classList.add('desktop-app');
+    bridge.getState().then(setDesktopState).catch(() => undefined);
+    return () => document.documentElement.classList.remove('desktop-app');
+  }, []);
+  useEffect(() => {
+    fetch('/api/auth/qq/session', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((result: { configured: boolean; user: QQUser | null; syncSecret?: string }) => {
+        setQqConfigured(result.configured);
+        setQqUser(result.user);
+        if (result.syncSecret) setQqSyncSecret(result.syncSecret);
+      })
+      .catch(() => setQqConfigured(false))
+      .finally(() => setQqLoading(false));
   }, []);
   useEffect(() => {
     if (loaded) window.localStorage.setItem('daylight-tasks', JSON.stringify(tasks));
@@ -180,8 +223,7 @@ export default function Home() {
     if (!response.ok) throw new Error('云端保存失败');
   };
 
-  const connectSync = async () => {
-    const secret = syncSecret.trim();
+  const connectWithSecret = async (secret: string, remember = true) => {
     if (secret.length < 8) {
       setSyncStatus('同步密钥至少需要 8 个字符');
       return;
@@ -202,7 +244,7 @@ export default function Home() {
         await uploadTasks(tasks, secret);
         setSyncStatus(`同步空间已创建，已上传 ${tasks.length} 项待办`);
       }
-      window.localStorage.setItem('daylight-sync-secret', secret);
+      if (remember) window.localStorage.setItem('daylight-sync-secret', secret);
       setSyncSecret(secret);
       setSyncEnabled(true);
       setSyncReady(true);
@@ -213,6 +255,17 @@ export default function Home() {
       setSyncBusy(false);
     }
   };
+
+  const connectSync = async () => connectWithSecret(syncSecret.trim());
+
+  useEffect(() => {
+    if (!loaded || !qqSyncSecret || qqConnectedOnce.current) return;
+    qqConnectedOnce.current = true;
+    setSyncSecret(qqSyncSecret);
+    setSyncEnabled(true);
+    setSyncStatus('QQ 已登录，正在同步账号数据…');
+    connectWithSecret(qqSyncSecret, false);
+  }, [loaded, qqSyncSecret]);
 
   useEffect(() => {
     if (!loaded || !syncEnabled || !syncReady || !syncSecret) return;
@@ -235,6 +288,32 @@ export default function Home() {
     setSyncReady(false);
     setSyncSecret('');
     setSyncStatus('已停用云同步，本机数据仍然保留');
+  };
+
+  const logoutQQ = async () => {
+    await fetch('/api/auth/qq/logout', { method: 'POST' });
+    window.localStorage.removeItem('daylight-sync-secret');
+    setQqUser(null);
+    setQqSyncSecret('');
+    setSyncEnabled(false);
+    setSyncReady(false);
+    setSyncSecret('');
+    setSyncStatus('QQ 已退出，本机待办仍然保留');
+  };
+
+  const changeDesktopSize = async (preset: DesktopSize) => {
+    const state = await window.daylightDesktop?.setSize(preset);
+    if (state) setDesktopState(state);
+  };
+
+  const toggleAutoStart = async () => {
+    const enabled = await window.daylightDesktop?.setAutoStart(!desktopState.autoStart);
+    if (typeof enabled === 'boolean') setDesktopState((state) => ({ ...state, autoStart: enabled }));
+  };
+
+  const toggleAlwaysOnTop = async () => {
+    const enabled = await window.daylightDesktop?.setAlwaysOnTop(!desktopState.alwaysOnTop);
+    if (typeof enabled === 'boolean') setDesktopState((state) => ({ ...state, alwaysOnTop: enabled }));
   };
 
   const monthDays = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
@@ -321,10 +400,10 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#07101e] p-2 text-white sm:p-3 lg:p-4">
-      <section style={{ opacity: opacity / 100 }} className="mx-auto min-h-[calc(100vh-16px)] max-w-[1700px] overflow-hidden rounded-[24px] border border-white/10 bg-[#102844] shadow-[0_30px_90px_rgba(0,0,0,0.35)] transition-opacity sm:min-h-[calc(100vh-24px)] lg:min-h-[calc(100vh-32px)]">
+      <section style={{ opacity: isDesktop ? 1 : opacity / 100 }} className="calendar-shell mx-auto min-h-[calc(100vh-16px)] max-w-[1700px] overflow-hidden rounded-[24px] border border-white/10 bg-[#102844] shadow-[0_30px_90px_rgba(0,0,0,0.35)] transition-opacity sm:min-h-[calc(100vh-24px)] lg:min-h-[calc(100vh-32px)]">
         <header className="calendar-topbar">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100/60">Daylight Calendar</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100/60">chaoquncalender</p>
             <h1 className="truncate text-base font-semibold text-[#fff8ae] sm:text-lg">今天是 {formatDate(today)}</h1>
           </div>
           <label className="relative hidden w-56 md:block">
@@ -345,6 +424,7 @@ export default function Home() {
                 <button type="button" onClick={() => setSettingsOpen(true)}><Settings2 /> 设置与同步</button>
               </div>
             </details>
+            {isDesktop && <div className="desktop-window-buttons"><button type="button" onClick={() => window.daylightDesktop?.minimize()} aria-label="最小化"><Minimize2 /></button><button type="button" onClick={() => window.daylightDesktop?.close()} aria-label="关闭"><X /></button></div>}
           </div>
         </header>
 
@@ -386,9 +466,29 @@ export default function Home() {
           <section className="settings-panel" aria-label="设置与同步">
             <div className="editor-heading">
               <span className="editor-color editor-color-blue" />
-              <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Daylight</p><h2 className="text-lg font-bold text-slate-900">设置与云同步</h2></div>
+              <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">chaoquncalender</p><h2 className="text-lg font-bold text-slate-900">设置与账号同步</h2></div>
               <Button type="button" variant="ghost" size="icon-sm" onClick={() => setSettingsOpen(false)} aria-label="关闭设置"><X /></Button>
             </div>
+
+            <div className="settings-block">
+              <div className="flex items-start gap-3">
+                <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#12b7f5] text-white">{qqUser?.avatar ? <img src={qqUser.avatar} alt="QQ头像" className="size-full object-cover" /> : <QrCode className="size-5" />}</div>
+                <div className="min-w-0 flex-1"><p className="font-semibold text-slate-800">QQ 扫码登录</p><p className="text-xs leading-5 text-slate-500">登录后自动同步不同电脑上的待办。</p></div>
+              </div>
+              {qqLoading ? <p className="mt-3 text-xs text-slate-500">正在检查登录状态…</p> : qqUser ? (
+                <div className="mt-3 flex items-center justify-between rounded-xl bg-white px-3 py-2"><span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700"><UserRound className="size-4" /><span className="truncate">{qqUser.nickname}</span></span><Button type="button" variant="ghost" size="sm" onClick={logoutQQ}>退出</Button></div>
+              ) : qqConfigured ? (
+                <Button type="button" className="mt-3 w-full bg-[#12b7f5] hover:bg-[#0da7e1]" onClick={() => window.location.assign('/api/auth/qq/start')}><QrCode /> 使用手机 QQ 扫码登录</Button>
+              ) : (
+                <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">QQ 登录待配置：需要在 QQ 互联申请网站应用并设置 AppID、AppKey 与回调地址。</p>
+              )}
+            </div>
+
+            {isDesktop && <div className="settings-block">
+              <div className="flex items-center justify-between"><div><p className="font-semibold text-slate-800">桌面小组件</p><p className="text-xs text-slate-500">拖动窗口边缘也可以自由调整大小。</p></div><span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-semibold text-primary">Win11</span></div>
+              <div className="mt-3 grid grid-cols-3 gap-2">{(['compact', 'standard', 'large'] as DesktopSize[]).map((size, index) => <Button key={size} type="button" size="sm" variant={desktopState.sizePreset === size ? 'default' : 'outline'} onClick={() => changeDesktopSize(size)}>{['紧凑', '标准', '大号'][index]}</Button>)}</div>
+              <div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant={desktopState.autoStart ? 'secondary' : 'outline'} onClick={toggleAutoStart}>{desktopState.autoStart ? <Check /> : <X />} 开机启动</Button><Button type="button" variant={desktopState.alwaysOnTop ? 'secondary' : 'outline'} onClick={toggleAlwaysOnTop}>{desktopState.alwaysOnTop ? <Pin /> : <PinOff />} {desktopState.alwaysOnTop ? '已置顶' : '不置顶'}</Button></div>
+            </div>}
 
             <div className="settings-block">
               <div className="flex items-center justify-between"><div><p className="font-semibold text-slate-800">界面透明度</p><p className="text-xs text-slate-500">桌面版中也会同步调整窗口透明度</p></div><strong className="text-sm text-primary">{opacity}%</strong></div>
