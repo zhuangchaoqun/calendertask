@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('daylightDesktop', {
   setAlwaysOnTop: (enabled) => ipcRenderer.invoke('chaoqun:set-always-on-top', enabled),
   moveBy: (deltaX, deltaY) => ipcRenderer.send('chaoqun:move-by', deltaX, deltaY),
   resizeBy: (edge, deltaX, deltaY) => ipcRenderer.send('chaoqun:resize-by', edge, deltaX, deltaY),
+  exportBackup: (contents) => ipcRenderer.invoke('chaoqun:export-backup', contents),
+  importBackup: () => ipcRenderer.invoke('chaoqun:import-backup'),
   minimize: () => ipcRenderer.send('chaoqun:minimize'),
   close: () => ipcRenderer.send('chaoqun:close'),
 });

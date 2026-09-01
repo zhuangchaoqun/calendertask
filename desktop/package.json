@@ -1,6 +1,6 @@
 {
   "name": "chaoquncalender",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "private": true,
   "description": "chaoquncalender Windows 11 desktop calendar widget",
   "main": "main.cjs",
@@ -16,7 +16,7 @@
     "productName": "chaoquncalender",
     "directories": { "output": "release" },
     "artifactName": "chaoquncalender-Setup-${version}.${ext}",
-    "files": ["main.cjs", "preload.cjs"],
+    "files": ["main.cjs", "preload.cjs", "offline/**/*"],
     "win": { "target": "nsis" },
     "nsis": {
       "oneClick": false,

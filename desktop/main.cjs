@@ -1,9 +1,7 @@
-const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SITE_URL = 'https://daylight-tasks.zhuangchaoqun.chatgpt.site';
-const SITE_ORIGIN = new URL(SITE_URL).origin;
 const SIZE_PRESETS = {
   compact: { width: 640, height: 520 },
   standard: { width: 980, height: 760 },
@@ -80,18 +78,16 @@ function createWindow() {
   window.setAlwaysOnTop(Boolean(settings.alwaysOnTop), 'floating');
   window.setOpacity(Math.min(1, Math.max(0.45, Number(settings.opacity) || 1)));
   window.once('ready-to-show', () => window.show());
-  window.loadURL(SITE_URL);
+  window.loadFile(path.join(__dirname, 'offline', 'index.html'));
 
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(SITE_ORIGIN)) return { action: 'allow' };
-    shell.openExternal(url);
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(SITE_ORIGIN)) {
-      event.preventDefault();
-      shell.openExternal(url);
-    }
+    if (url.startsWith('file:')) return;
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
   });
 
   let saveBoundsTimer;
@@ -165,6 +161,25 @@ ipcMain.on('chaoqun:set-opacity', (event, value) => {
 });
 ipcMain.on('chaoqun:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
 ipcMain.on('chaoqun:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+ipcMain.handle('chaoqun:export-backup', async (_event, contents) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: '导出 chaoquncalender 本地备份',
+    defaultPath: `chaoquncalender-backup-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: 'JSON 备份', extensions: ['json'] }],
+  });
+  if (result.canceled || !result.filePath) return false;
+  fs.writeFileSync(result.filePath, String(contents), 'utf8');
+  return true;
+});
+ipcMain.handle('chaoqun:import-backup', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '导入 chaoquncalender 本地备份',
+    properties: ['openFile'],
+    filters: [{ name: 'JSON 备份', extensions: ['json'] }],
+  });
+  if (result.canceled || !result.filePaths[0]) return null;
+  return fs.readFileSync(result.filePaths[0], 'utf8');
+});
 
 app.whenReady().then(() => {
   settingsPath = path.join(app.getPath('userData'), 'widget-settings.json');
