@@ -1,8 +1,8 @@
 {
-  "name": "chaoquncalender",
-  "version": "3.0.0",
+  "name": "beiocalender",
+  "version": "3.3.0",
   "private": true,
-  "description": "chaoquncalender Windows 11 desktop calendar widget",
+  "description": "BEIOCalender Windows 11 desktop calendar widget",
   "main": "main.cjs",
   "scripts": {
     "dist": "electron-builder --win nsis"
@@ -13,17 +13,43 @@
   },
   "build": {
     "appId": "com.zhuangchaoqun.chaoquncalender",
-    "productName": "chaoquncalender",
-    "directories": { "output": "release" },
-    "artifactName": "chaoquncalender-Setup-${version}.${ext}",
-    "files": ["main.cjs", "preload.cjs", "offline/**/*"],
-    "win": { "target": "nsis" },
+    "productName": "BEIOCalender",
+    "directories": {
+      "output": "release"
+    },
+    "artifactName": "BEIOCalender-Setup-${version}.${ext}",
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "offline/**/*",
+      "assets/**/*",
+      "build/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "desktop-helper.ps1",
+        "to": "desktop-helper.ps1"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://124.223.175.138/chaoquncalender/updates/"
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "chaoquncalender"
+      "shortcutName": "BEIOCalender"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

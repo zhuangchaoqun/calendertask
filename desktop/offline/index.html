@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
-  <title>chaoquncalender</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://124.223.175.138">
+  <title>BEIOCalender</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="widget-mode.css">
 </head>
 <body>
   <main class="widget">
     <header class="topbar">
       <button id="dragGrip" class="drag-grip" title="按住移动桌面日历">⠿ <span>拖动</span></button>
-      <div class="brand"><small>CHAOQUNCALENDER · 离线版</small><strong id="todayTitle"></strong></div>
+      <div class="brand"><img src="../assets/logo.jpg" alt="BEIO"><span><small>BEIOCALENDER · 桌面同步版</small><strong id="todayTitle"></strong></span></div>
       <label class="search"><span>⌕</span><input id="searchInput" placeholder="搜索待办…"></label>
       <div class="actions">
         <span id="remaining" class="remaining"></span>
@@ -19,14 +20,20 @@
         <button id="goToday" class="text-button">今天</button>
         <button id="nextMonth" title="下个月">›</button>
         <button id="addToday" title="新建今日待办">＋</button>
+        <button id="collapseWidget" title="折叠为桌面图标">⌃</button>
         <button id="openSettings" title="设置">⚙</button>
-        <span class="window-actions"><button id="minimize" title="最小化">—</button><button id="close" title="关闭">×</button></span>
+        <span class="window-actions"><button id="minimize" title="折叠到桌面图标">—</button><button id="close" title="折叠到桌面图标">×</button></span>
       </div>
     </header>
     <div id="monthLabel" class="month-label"></div>
     <div class="weekdays"><span>星期一</span><span>星期二</span><span>星期三</span><span>星期四</span><span>星期五</span><span>星期六</span><span>星期日</span></div>
     <div id="calendar" class="calendar"></div>
   </main>
+
+  <section id="collapsedWidget" class="collapsed-widget" aria-label="折叠的 BEIOCalender">
+    <button id="expandWidget" title="展开日历"><span id="miniDay"></span><small id="miniRemaining">0</small></button>
+    <button id="miniDrag" class="mini-drag" title="拖动折叠图标">⠿</button>
+  </section>
 
   <dialog id="taskDialog">
     <form id="taskForm" class="panel">
@@ -44,10 +51,11 @@
 
   <dialog id="settingsDialog">
     <section class="panel settings-panel">
-      <div class="panel-head"><div><small>CHAOQUNCALENDER</small><h2>本地桌面设置</h2></div><button type="button" data-close="settingsDialog">×</button></div>
-      <div class="setting-card"><div><b>完全离线</b><p>待办只保存在这台电脑，不访问 chatgpt.site，也不需要 VPN 或账号。</p></div><span class="offline-badge">● 本地</span></div>
-      <div class="setting-card column"><b>桌面组件</b><div class="button-grid"><button data-size="compact">紧凑</button><button data-size="standard">标准</button><button data-size="large">大号</button></div><div class="button-grid two"><button id="autoStart">开机启动</button><button id="alwaysTop">桌面置顶</button></div></div>
+      <div class="panel-head"><div><small>BEIOCALENDER</small><h2>本地桌面设置</h2></div><button type="button" data-close="settingsDialog">×</button></div>
+      <div class="setting-card column auth-card"><div class="setting-row"><div><b>账号与跨电脑同步</b><p id="accountStatus">未登录，本机待办仍可离线使用。</p></div><span id="syncBadge" class="offline-badge">● 本地</span></div><div id="authForm" class="auth-form"><input id="accountUsername" autocomplete="username" maxlength="32" placeholder="用户名"><input id="accountPassword" type="password" autocomplete="current-password" maxlength="128" placeholder="密码（至少8位）"><button id="loginAccount">登录</button><button id="registerAccount">注册</button></div><div id="signedInActions" class="button-grid two" hidden><button id="syncNow">立即同步</button><button id="logoutAccount">退出账号</button></div><p id="authMessage" class="status"></p></div>
+      <div class="setting-card column"><b>桌面组件</b><p>“固定桌面”模式会把日历嵌入壁纸层；点击 Windows 的“显示桌面”后仍会保留。</p><div class="button-grid"><button data-size="compact">紧凑</button><button data-size="standard">标准</button><button data-size="large">大号</button></div><div class="button-grid"><button id="desktopPinned">固定桌面</button><button id="autoStart">开机启动</button><button id="alwaysTop">浮动置顶</button></div></div>
       <div class="setting-card column"><div class="setting-row"><div><b>透明度</b><p>调整整个桌面组件的透明程度</p></div><strong id="opacityValue">100%</strong></div><input id="opacity" type="range" min="45" max="100" step="5" value="100"></div>
+      <div class="setting-card"><div><b>自动更新</b><p id="updateStatus">正在读取版本状态…</p></div><div class="update-actions"><button id="checkUpdate">检查更新</button><button id="installUpdate" class="primary" hidden>安装并重启</button></div></div>
       <div class="setting-card column"><b>本地备份与换电脑</b><p>不联网时，可导出 JSON 文件，通过 U 盘复制到另一台电脑再导入。</p><div class="button-grid two"><button id="exportBackup">导出备份</button><button id="importBackup">导入备份</button></div><p id="backupStatus" class="status"></p></div>
     </section>
   </dialog>

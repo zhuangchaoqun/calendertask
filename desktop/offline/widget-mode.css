@@ -1,0 +1,139 @@
+.collapsed-widget {
+  display: none;
+  position: relative;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  margin: 4px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 20px;
+  background: linear-gradient(145deg, #73a9be, #285b86);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .38);
+}
+
+.collapsed-widget #expandWidget {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  padding: 6px;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(10, 34, 61, .88);
+  color: #fffbd0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16);
+}
+
+.collapsed-widget #expandWidget::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  width: 32px;
+  height: 5px;
+  border-radius: 4px 4px 0 0;
+  background: #ef7b68;
+}
+
+.collapsed-widget #miniDay {
+  margin-top: 7px;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.collapsed-widget #miniRemaining {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 12px;
+  background: #ef7b68;
+  color: #fff;
+  font-size: 10px;
+  line-height: 19px;
+}
+
+.mini-drag {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  padding: 1px 3px;
+  background: transparent;
+  color: rgba(255, 255, 255, .58);
+  font-size: 10px;
+  cursor: move;
+  touch-action: none;
+}
+
+.collapsed .widget,
+.collapsed .resize {
+  display: none;
+}
+
+.collapsed .collapsed-widget {
+  display: flex;
+}
+
+.update-actions {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 5px;
+  margin-left: 10px;
+}
+
+.setting-card .update-actions .primary {
+  background: #315be8;
+  color: #fff;
+}
+
+.auth-form {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  gap: 6px;
+}
+
+.auth-form input {
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid #dce2eb;
+  border-radius: 9px;
+  outline: none;
+  background: #fff;
+  color: #243147;
+  font-size: 11px;
+}
+
+.auth-form input:focus {
+  border-color: #6d8ef0;
+  box-shadow: 0 0 0 2px rgba(49, 91, 232, .12);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.brand > img {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 10px;
+  object-fit: cover;
+  object-position: 50% 25%;
+  box-shadow: 0 2px 8px rgba(14, 57, 105, .16);
+}
+
+.brand > span {
+  display: grid;
+}
+
+@media (max-width: 620px) {
+  .auth-form { grid-template-columns: 1fr 1fr; }
+}

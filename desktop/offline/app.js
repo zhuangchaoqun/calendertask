@@ -2,6 +2,8 @@
 
 const bridge = window.daylightDesktop;
 const STORAGE_KEY = 'chaoqun-offline-tasks-v1';
+const SESSION_KEY = 'chaoqun-sync-session-v1';
+const API_BASE = 'https://124.223.175.138';
 const COLORS = new Set(['blue', 'coral', 'green', 'gold']);
 const $ = (id) => document.getElementById(id);
 const pad = (n) => String(n).padStart(2, '0');
@@ -12,9 +14,28 @@ const today = new Date();
 let viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
 let editingId = null;
 let searchText = '';
+let session = loadSession();
 let tasks = loadTasks();
-let desktopState = { autoStart: true, alwaysOnTop: false, sizePreset: 'standard', opacity: 1 };
+let desktopState = { autoStart: true, alwaysOnTop: false, desktopPinned: true, sizePreset: 'standard', opacity: 1, collapsed: false, update: { status: 'idle', message: '已是最新版本' } };
 let pointerAction = null;
+let syncTimer = null;
+let syncing = false;
+let syncPending = false;
+
+function loadSession() {
+  try {
+    const value = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    return value?.token && value?.username ? value : null;
+  } catch { return null; }
+}
+
+function taskStorageKey() {
+  return session ? `${STORAGE_KEY}:${session.username.toLocaleLowerCase('zh-CN')}` : STORAGE_KEY;
+}
+
+function revisionStorageKey() {
+  return session ? `chaoqun-sync-revision:${session.username.toLocaleLowerCase('zh-CN')}` : 'chaoqun-sync-revision:local';
+}
 
 function normalizeTask(value) {
   if (!value || typeof value.title !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.date || '')) return null;
@@ -24,20 +45,25 @@ function normalizeTask(value) {
     time: /^\d{2}:\d{2}$/.test(value.time || '') ? value.time : '',
     completed: Boolean(value.completed), reminder: Boolean(value.reminder),
     color: COLORS.has(value.color) ? value.color : 'blue',
+    updatedAt: Number(value.updatedAt) || Date.now(),
+    deletedAt: Number(value.deletedAt) || 0,
   };
 }
 
 function loadTasks() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const parsed = JSON.parse(localStorage.getItem(taskStorageKey()) || '[]');
     return Array.isArray(parsed) ? parsed.map(normalizeTask).filter(Boolean) : [];
   } catch { return []; }
 }
 
 function saveTasks() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  persistTasks();
   render();
+  scheduleSync();
 }
+
+function persistTasks() { localStorage.setItem(taskStorageKey(), JSON.stringify(tasks)); }
 
 function monthGrid() {
   const first = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
@@ -51,8 +77,11 @@ function monthGrid() {
 function render() {
   $('todayTitle').textContent = `今天是 ${formatDate(today)}`;
   $('monthLabel').textContent = `${viewDate.getFullYear()}年 ${viewDate.getMonth() + 1}月`;
-  const visible = tasks.filter((task) => task.title.toLowerCase().includes(searchText));
-  $('remaining').textContent = `${tasks.filter((task) => !task.completed).length} 项待完成`;
+  const currentTasks = tasks.filter((task) => !task.deletedAt);
+  const visible = currentTasks.filter((task) => task.title.toLowerCase().includes(searchText));
+  $('remaining').textContent = `${currentTasks.filter((task) => !task.completed).length} 项待完成`;
+  $('miniDay').textContent = today.getDate();
+  $('miniRemaining').textContent = currentTasks.filter((task) => !task.completed).length;
   const calendar = $('calendar');
   calendar.replaceChildren();
   monthGrid().forEach((date) => {
@@ -103,15 +132,16 @@ $('taskForm').addEventListener('submit', (event) => {
     id: editingId || crypto.randomUUID(), title, date: $('taskDate').value, time: $('taskTime').value,
     completed: $('taskCompleted').checked, reminder: $('taskReminder').checked,
     color: document.querySelector('input[name="color"]:checked').value,
+    updatedAt: Date.now(), deletedAt: 0,
   };
   tasks = editingId ? tasks.map((task) => task.id === editingId ? next : task) : [...tasks, next];
   closeDialog('taskDialog'); saveTasks();
 });
 
-$('deleteTask').addEventListener('click', () => { if (editingId) tasks = tasks.filter((task) => task.id !== editingId); closeDialog('taskDialog'); saveTasks(); });
+$('deleteTask').addEventListener('click', () => { if (editingId) tasks = tasks.map((task) => task.id === editingId ? { ...task, deletedAt: Date.now(), updatedAt: Date.now() } : task); closeDialog('taskDialog'); saveTasks(); });
 $('duplicateTask').addEventListener('click', () => {
   const task = tasks.find((item) => item.id === editingId); if (!task) return;
-  tasks.push({ ...task, id: crypto.randomUUID(), title: `${task.title}（副本）`, completed: false }); closeDialog('taskDialog'); saveTasks();
+  tasks.push({ ...task, id: crypto.randomUUID(), title: `${task.title}（副本）`, completed: false, deletedAt: 0, updatedAt: Date.now() }); closeDialog('taskDialog'); saveTasks();
 });
 document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => closeDialog(button.dataset.close)));
 $('taskDate').addEventListener('change', () => { if ($('taskDate').value) $('editorDateTitle').textContent = formatDate(parseDate($('taskDate').value)); });
@@ -122,22 +152,38 @@ $('addToday').addEventListener('click', () => openEditor(dateKey(today)));
 $('searchInput').addEventListener('input', (event) => { searchText = event.target.value.trim().toLowerCase(); render(); });
 $('minimize').addEventListener('click', () => bridge?.minimize());
 $('close').addEventListener('click', () => bridge?.close());
+$('collapseWidget').addEventListener('click', async () => applyDesktopState(await bridge?.setCollapsed(true)));
+$('expandWidget').addEventListener('click', async () => applyDesktopState(await bridge?.setCollapsed(false)));
+
+function applyDesktopState(state) {
+  if (!state) return;
+  desktopState = state;
+  document.body.classList.toggle('collapsed', Boolean(desktopState.collapsed));
+  refreshSettings();
+}
 
 function refreshSettings() {
   $('autoStart').classList.toggle('active', desktopState.autoStart); $('autoStart').textContent = desktopState.autoStart ? '✓ 开机启动' : '开机启动';
-  $('alwaysTop').classList.toggle('active', desktopState.alwaysOnTop); $('alwaysTop').textContent = desktopState.alwaysOnTop ? '✓ 已置顶' : '桌面置顶';
+  $('desktopPinned').classList.toggle('active', desktopState.desktopPinned); $('desktopPinned').textContent = desktopState.desktopPinned ? '✓ 已固定桌面' : '固定桌面';
+  $('alwaysTop').classList.toggle('active', desktopState.alwaysOnTop); $('alwaysTop').textContent = desktopState.alwaysOnTop ? '✓ 浮动置顶' : '浮动置顶';
+  $('alwaysTop').disabled = desktopState.desktopPinned;
   document.querySelectorAll('[data-size]').forEach((button) => button.classList.toggle('active', button.dataset.size === desktopState.sizePreset));
   const opacity = Math.round(desktopState.opacity * 100); $('opacity').value = String(opacity); $('opacityValue').textContent = `${opacity}%`;
+  $('updateStatus').textContent = desktopState.update?.message || '尚未检查更新';
+  $('installUpdate').hidden = desktopState.update?.status !== 'ready';
 }
 
 $('openSettings').addEventListener('click', () => { refreshSettings(); $('settingsDialog').showModal(); });
 $('autoStart').addEventListener('click', async () => { desktopState.autoStart = await bridge?.setAutoStart(!desktopState.autoStart); refreshSettings(); });
+$('desktopPinned').addEventListener('click', async () => { desktopState.desktopPinned = await bridge?.setDesktopPinned(!desktopState.desktopPinned); refreshSettings(); });
 $('alwaysTop').addEventListener('click', async () => { desktopState.alwaysOnTop = await bridge?.setAlwaysOnTop(!desktopState.alwaysOnTop); refreshSettings(); });
 document.querySelectorAll('[data-size]').forEach((button) => button.addEventListener('click', async () => { desktopState = await bridge?.setSize(button.dataset.size) || desktopState; refreshSettings(); }));
 $('opacity').addEventListener('input', (event) => { const value = Number(event.target.value); desktopState.opacity = value / 100; $('opacityValue').textContent = `${value}%`; bridge?.setOpacity(value / 100); });
+$('checkUpdate').addEventListener('click', async () => { desktopState.update = { status: 'checking', message: '正在检查更新…' }; refreshSettings(); const update = await bridge?.checkForUpdates(); if (update) { desktopState.update = update; refreshSettings(); } });
+$('installUpdate').addEventListener('click', () => bridge?.installUpdate());
 
 $('exportBackup').addEventListener('click', async () => {
-  const contents = JSON.stringify({ app: 'chaoquncalender', version: 1, exportedAt: new Date().toISOString(), tasks }, null, 2);
+  const contents = JSON.stringify({ app: 'BEIOCalender', version: 1, exportedAt: new Date().toISOString(), tasks }, null, 2);
   $('backupStatus').textContent = await bridge?.exportBackup(contents) ? '备份已导出。' : '';
 });
 $('importBackup').addEventListener('click', async () => {
@@ -149,6 +195,115 @@ $('importBackup').addEventListener('click', async () => {
   } catch { $('backupStatus').textContent = '备份文件格式不正确。'; }
 });
 
+function mergeTasks(localTasks, remoteTasks) {
+  const merged = new Map();
+  [...localTasks, ...remoteTasks].map(normalizeTask).filter(Boolean).forEach((task) => {
+    const existing = merged.get(task.id);
+    if (!existing || task.updatedAt > existing.updatedAt || (task.updatedAt === existing.updatedAt && task.deletedAt > existing.deletedAt)) merged.set(task.id, task);
+  });
+  return [...merged.values()];
+}
+
+async function api(path, options = {}, authenticated = true) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (authenticated && session?.token) headers.Authorization = `Bearer ${session.token}`;
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let body = {};
+  try { body = await response.json(); } catch { body = { error: '服务器返回了无法识别的内容' }; }
+  if (!response.ok) {
+    const error = new Error(body.error || `请求失败（${response.status}）`);
+    error.status = response.status; error.body = body; throw error;
+  }
+  return body;
+}
+
+function setSyncStatus(message, online = Boolean(session)) {
+  $('accountStatus').textContent = session ? `${session.username} · ${message}` : '未登录，本机待办仍可离线使用。';
+  $('syncBadge').textContent = online ? '● 已联网' : '● 本地';
+  $('syncBadge').classList.toggle('online', online);
+  $('authForm').hidden = Boolean(session);
+  $('signedInActions').hidden = !session;
+}
+
+function scheduleSync() {
+  if (!session) return;
+  syncPending = true;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow(), 900);
+}
+
+async function syncNow() {
+  if (!session || syncing) return;
+  syncPending = false;
+  syncing = true;
+  setSyncStatus('正在同步…', true);
+  try {
+    let remote = await api('/api/sync');
+    tasks = mergeTasks(tasks, remote.found ? remote.payload : []);
+    let revision = Number(remote.revision) || 0;
+    let saved;
+    try {
+      saved = await api('/api/sync', { method: 'PUT', body: JSON.stringify({ payload: tasks, baseRevision: revision }) });
+    } catch (error) {
+      if (error.status !== 409) throw error;
+      tasks = mergeTasks(tasks, error.body.payload || []);
+      revision = Number(error.body.revision) || 0;
+      saved = await api('/api/sync', { method: 'PUT', body: JSON.stringify({ payload: tasks, baseRevision: revision }) });
+    }
+    tasks = tasks.filter((task) => !task.deletedAt || Date.now() - task.deletedAt < 30 * 24 * 60 * 60 * 1000);
+    localStorage.setItem(revisionStorageKey(), String(saved.revision));
+    persistTasks(); render();
+    setSyncStatus(`已同步 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`, true);
+    $('authMessage').textContent = '';
+  } catch (error) {
+    if (error.status === 401) {
+      session = null; localStorage.removeItem(SESSION_KEY); refreshAccount();
+      $('authMessage').textContent = '登录已失效，请重新登录。';
+    } else {
+      setSyncStatus('离线，恢复网络后会自动重试', false);
+      $('authMessage').textContent = error.message || '同步失败';
+    }
+  } finally {
+    syncing = false;
+    if (syncPending && session) {
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => syncNow(), 300);
+    }
+  }
+}
+
+function refreshAccount() {
+  setSyncStatus(session ? '等待同步' : '', Boolean(session));
+}
+
+async function authenticate(mode) {
+  const username = $('accountUsername').value.trim();
+  const password = $('accountPassword').value;
+  $('authMessage').textContent = mode === 'register' ? '正在注册…' : '正在登录…';
+  try {
+    const anonymous = !session && !localStorage.getItem('chaoqun-anonymous-migrated') ? tasks : [];
+    const result = await api(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify({ username, password }) }, false);
+    session = { token: result.token, username: result.username };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    const accountTasks = loadTasks();
+    tasks = mergeTasks(accountTasks, anonymous);
+    if (anonymous.length) localStorage.setItem('chaoqun-anonymous-migrated', '1');
+    $('accountPassword').value = '';
+    persistTasks(); render(); refreshAccount();
+    await syncNow();
+  } catch (error) { $('authMessage').textContent = error.message || '操作失败'; }
+}
+
+$('loginAccount').addEventListener('click', () => authenticate('login'));
+$('registerAccount').addEventListener('click', () => authenticate('register'));
+$('accountPassword').addEventListener('keydown', (event) => { if (event.key === 'Enter') authenticate('login'); });
+$('syncNow').addEventListener('click', () => syncNow());
+$('logoutAccount').addEventListener('click', async () => {
+  try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* local logout still succeeds */ }
+  session = null; localStorage.removeItem(SESSION_KEY); tasks = loadTasks(); render(); refreshAccount(); $('authMessage').textContent = '已退出账号。';
+});
+window.addEventListener('online', () => syncNow());
+
 function beginPointer(event, mode, edge) { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); pointerAction = { mode, edge, x: event.screenX, y: event.screenY }; }
 function movePointer(event) {
   if (!pointerAction || !bridge) return; const dx = event.screenX - pointerAction.x; const dy = event.screenY - pointerAction.y; if (!dx && !dy) return;
@@ -158,7 +313,18 @@ function movePointer(event) {
 function endPointer() { pointerAction = null; }
 $('dragGrip').addEventListener('pointerdown', (event) => beginPointer(event, 'move'));
 $('dragGrip').addEventListener('pointermove', movePointer); $('dragGrip').addEventListener('pointerup', endPointer); $('dragGrip').addEventListener('pointercancel', endPointer);
+$('miniDrag').addEventListener('pointerdown', (event) => beginPointer(event, 'move'));
+$('miniDrag').addEventListener('pointermove', movePointer); $('miniDrag').addEventListener('pointerup', endPointer); $('miniDrag').addEventListener('pointercancel', endPointer);
 document.querySelectorAll('.resize').forEach((handle) => { handle.addEventListener('pointerdown', (event) => beginPointer(event, 'resize', handle.dataset.edge)); handle.addEventListener('pointermove', movePointer); handle.addEventListener('pointerup', endPointer); handle.addEventListener('pointercancel', endPointer); });
 
-bridge?.getState().then((state) => { desktopState = state; refreshSettings(); }).catch(() => undefined);
+bridge?.onStateChanged((state) => applyDesktopState(state));
+bridge?.getState().then((state) => applyDesktopState(state)).catch(() => undefined);
+refreshAccount();
+if (session) api('/api/auth/session').then(() => syncNow()).catch((error) => {
+  if (error.status === 401) {
+    session = null; localStorage.removeItem(SESSION_KEY); tasks = loadTasks(); render(); refreshAccount();
+  } else {
+    setSyncStatus('离线，联网后自动同步', false);
+  }
+});
 render();

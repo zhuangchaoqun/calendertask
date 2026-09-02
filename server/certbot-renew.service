@@ -1,0 +1,11 @@
+[Unit]
+Description=Renew BEIOCalender TLS certificate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/certbot/bin/certbot renew --quiet --deploy-hook "/usr/bin/systemctl reload nginx"
+
+[Install]
+WantedBy=multi-user.target

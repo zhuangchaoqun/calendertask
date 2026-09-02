@@ -60,5 +60,13 @@ next-env.d.ts
 /desktop/release/
 /installer/
 
+# Python service runtime and test artifacts
+__pycache__/
+*.py[cod]
+*.db
+*.db-shm
+*.db-wal
+
 # local design reference
 /calender task.png
+/logo.jpg

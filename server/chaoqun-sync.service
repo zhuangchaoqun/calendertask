@@ -1,0 +1,21 @@
+[Unit]
+Description=chaoquncalender account and task sync service
+After=network.target
+
+[Service]
+Type=simple
+User=chaoqun-sync
+Group=chaoqun-sync
+Environment=PYTHONUNBUFFERED=1
+Environment=CHAOQUN_DB=/var/lib/chaoqun-sync/sync.db
+ExecStart=/usr/bin/python3 /opt/chaoqun-sync/sync_server.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/chaoqun-sync
+
+[Install]
+WantedBy=multi-user.target
