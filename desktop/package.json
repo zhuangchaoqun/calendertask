@@ -1,6 +1,6 @@
 {
   "name": "beiocalender",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "private": true,
   "description": "BEIOCalender Windows 11 desktop calendar widget",
   "main": "main.cjs",

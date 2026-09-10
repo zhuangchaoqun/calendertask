@@ -134,6 +134,25 @@
   display: grid;
 }
 
+/* Keep today's date unmistakable against the blue desktop calendar. */
+.day.today {
+  z-index: 2;
+  box-shadow:
+    inset 0 0 0 3px #ffe45c,
+    inset 0 0 26px rgba(255, 228, 92, .48),
+    0 0 10px #ffe45c,
+    0 0 28px rgba(255, 220, 64, .78);
+}
+
+.day.today::after {
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
+  border: 1px solid rgba(255, 247, 168, .9);
+  border-radius: 3px;
+  content: "";
+}
+
 @media (max-width: 620px) {
   .auth-form { grid-template-columns: 1fr 1fr; }
 }
