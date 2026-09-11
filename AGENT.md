@@ -58,9 +58,9 @@
 
 ## 当前已知发布状态
 
-- GitHub 正式版本：`v3.3.1`
-- GitHub 提交：`bf0b6b530075f13134c110c44fbe80bac1867df7`
-- `BEIOCalender-Setup-3.3.1.exe` 与对应 `.blockmap` 已于 2026-09-10 上传到腾讯云更新目录。
+- GitHub `main` 提交：`48db72bfb1734a431299fae421d90650c9c5b7c3`（BEIOCalender 3.4.0）。
+- `BEIOCalender-Setup-3.4.0.exe`、对应 `.blockmap` 与 `latest.yml` 已于 2026-09-11 上传到腾讯云更新目录。
+- 公网 `latest.yml` 已核验为 `3.4.0`；安装包与 `.blockmap` 均返回 HTTP 200，安装包大小为 `94279701` 字节。
 - `latest.yml` 覆盖属于正式切换客户端自动更新版本的步骤；完成后必须再次读取公网清单验证，不能只依据控制台上传提示判断成功。
 
 ## 凭据约定
