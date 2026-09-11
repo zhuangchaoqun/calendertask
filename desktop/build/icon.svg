@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="60" y1="30" x2="450" y2="480" gradientUnits="userSpaceOnUse"><stop stop-color="#174F76"/><stop offset="1" stop-color="#071E34"/></linearGradient>
+    <linearGradient id="paper" x1="140" y1="90" x2="380" y2="440" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#E8F2F7"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <path d="M0 390 176 512H0Z" fill="#5B9E2F" opacity=".24"/>
+  <rect x="66" y="68" width="380" height="378" rx="76" fill="url(#paper)"/>
+  <path d="M66 144c0-42 34-76 76-76h228c42 0 76 34 76 76v36H66Z" fill="#1C5C90"/>
+  <rect x="139" y="42" width="27" height="91" rx="14" fill="#79B24B"/><rect x="346" y="42" width="27" height="91" rx="14" fill="#79B24B"/>
+  <circle cx="153" cy="121" r="9" fill="#F4F8FA"/><circle cx="360" cy="121" r="9" fill="#F4F8FA"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M105 242h58v-42l39-25v67h25V145l56-35v132h24v-62l42 28v34h58" stroke="#174F76" stroke-width="13"/><path d="M134 266h93v-24m56 0v24h94" stroke="#5B9E2F" stroke-width="10"/></g>
+  <circle cx="105" cy="242" r="10" fill="#174F76"/><circle cx="407" cy="242" r="10" fill="#5B9E2F"/><circle cx="134" cy="266" r="8" fill="#5B9E2F"/><circle cx="377" cy="266" r="8" fill="#174F76"/>
+  <text x="256" y="360" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="91" font-weight="900" letter-spacing="-4" fill="#174F76">BE<tspan fill="#5B9E2F">I</tspan>O</text>
+  <circle cx="343" cy="333" r="8" fill="#5B9E2F"/><path d="M343 333h27" fill="none" stroke="#5B9E2F" stroke-width="7" stroke-linecap="round"/>
+  <text x="256" y="409" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" letter-spacing="8" fill="#5B7690">CALENDAR</text>
+</svg>

@@ -62,7 +62,10 @@ html.desktop-app main {
   display: grid;
   min-height: 100vh;
   place-items: center;
-  background: radial-gradient(circle at 50% 15%, #173c62 0%, #091827 48%, #050b13 100%);
+  background:
+    radial-gradient(circle at 18% 12%, rgb(40 112 154 / 34%), transparent 34%),
+    radial-gradient(circle at 84% 86%, rgb(92 151 49 / 18%), transparent 30%),
+    linear-gradient(145deg, #071421 0%, #0b253c 52%, #07111c 100%);
   padding: 1rem;
   color: white;
 }
@@ -76,12 +79,12 @@ html.desktop-app main {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 28px;
-  background: rgb(10 31 51 / 88%);
+  border: 1px solid rgb(165 212 236 / 18%);
+  border-radius: 32px;
+  background: linear-gradient(160deg, rgb(13 44 69 / 94%), rgb(7 25 40 / 94%));
   padding: 3rem 2rem;
   text-align: center;
-  box-shadow: 0 30px 100px rgb(0 0 0 / 48%);
+  box-shadow: 0 34px 110px rgb(0 0 0 / 52%), inset 0 1px 0 rgb(255 255 255 / 8%);
   backdrop-filter: blur(24px);
 }
 
@@ -91,12 +94,14 @@ html.desktop-app main {
   height: 72px;
   margin-bottom: 1.5rem;
   place-items: center;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 16%);
   border-radius: 22px;
-  background: linear-gradient(145deg, #15c5f3, #2f55e7);
-  box-shadow: 0 16px 38px rgb(19 183 245 / 28%);
+  background: #0d3352;
+  box-shadow: 0 18px 42px rgb(1 12 24 / 48%);
 }
 
-.login-logo svg { width: 34px; height: 34px; }
+.login-logo img { width: 100%; height: 100%; object-fit: cover; }
 .login-window-bar { position: absolute; inset: 0 0 auto; display: flex; height: 48px; align-items: center; justify-content: space-between; padding: 0 10px 0 18px; color: rgb(255 255 255 / 55%); font-size: 11px; font-weight: 700; letter-spacing: .12em; -webkit-app-region: drag; }
 .login-window-bar button { -webkit-app-region: no-drag; }
 
@@ -183,8 +188,13 @@ html.desktop-app main {
 
 @layer components {
   .calendar-topbar {
-    @apply flex h-[72px] items-center justify-between gap-3 bg-gradient-to-r from-[#5d93ad] to-[#76a8bf] px-4 sm:px-6;
+    @apply relative flex h-[72px] items-center justify-between gap-3 bg-gradient-to-r from-[#0b2e4b] via-[#123f61] to-[#1d536d] px-4 sm:px-6;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), 0 8px 24px rgb(4 20 32 / 18%);
   }
+
+  .calendar-topbar::after { content: ''; position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: linear-gradient(90deg, #1f5b92 0 58%, #5b9e2f 58% 100%); }
+  .brand-lockup { @apply flex items-center gap-2.5; }
+  .brand-lockup > img { @apply size-10 shrink-0 rounded-xl border border-white/15 shadow-lg; }
 
   .desktop-app .calendar-topbar { -webkit-app-region: drag; }
   .desktop-app .calendar-topbar button,
@@ -200,21 +210,21 @@ html.desktop-app main {
   .desktop-window-buttons svg { @apply size-4; }
 
   .calendar-grid {
-    @apply grid grid-cols-7 bg-[#112b49];
+    @apply grid grid-cols-7 bg-[#d6e3ec];
   }
 
   .date-cell {
-    @apply relative min-h-[132px] overflow-hidden border-b border-r border-[#173650] bg-gradient-to-br from-[#398ed0] via-[#2675c4] to-[#1956a8] p-1.5 text-[#fffbd0] transition-colors hover:brightness-110 sm:min-h-[150px] sm:p-2;
+    @apply relative min-h-[132px] overflow-hidden border-b border-r border-[#bfd0dc] bg-gradient-to-br from-[#f8fbfd] via-[#edf4f8] to-[#e4eef4] p-1.5 text-[#173b55] transition-all hover:z-[1] hover:bg-white hover:shadow-[inset_0_0_0_1px_rgba(31,91,146,.2),0_8px_24px_rgba(21,57,81,.12)] sm:min-h-[150px] sm:p-2;
   }
 
   .date-cell:nth-child(7n) { @apply border-r-0; }
 
   .date-cell-muted {
-    @apply from-[#607583] via-[#687983] to-[#687782] text-white/55 saturate-50;
+    @apply from-[#e8edf0] via-[#e3e9ed] to-[#dde5e9] text-[#7c8f9d] saturate-50;
   }
 
   .date-cell-today {
-    @apply z-[2] shadow-[inset_0_0_0_3px_#ffe45c,inset_0_0_26px_rgba(255,228,92,0.48),0_0_10px_#ffe45c,0_0_28px_rgba(255,220,64,0.78)];
+    @apply z-[2] from-[#fffdf1] via-[#fff9d8] to-[#edf4f8] shadow-[inset_0_0_0_3px_#ffd942,inset_0_0_24px_rgba(255,220,64,0.32),0_0_11px_rgba(255,221,74,0.9),0_0_25px_rgba(255,215,45,0.5)];
   }
 
   .date-cell-today::after {
@@ -223,29 +233,29 @@ html.desktop-app main {
   }
 
   .date-cell-header {
-    @apply flex h-7 w-full items-center gap-2 rounded-md px-1 text-left text-sm font-semibold outline-none transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-[#fff7a8];
+    @apply flex h-7 w-full items-center gap-2 rounded-lg px-1 text-left text-sm font-semibold outline-none transition-colors hover:bg-[#173b55]/7 focus-visible:ring-2 focus-visible:ring-[#d7a800];
   }
 
   .date-number { @apply text-[15px] sm:text-base; }
-  .month-tag { @apply rounded bg-black/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide; }
+  .month-tag { @apply rounded-md bg-[#173b55]/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide; }
   .date-add { @apply ml-auto size-4 opacity-0 transition-opacity group-hover:opacity-100; }
   .date-cell:hover .date-add, .date-add:focus { @apply opacity-80; }
 
   .date-task-list { @apply mt-1 space-y-1; }
 
   .calendar-task {
-    @apply flex w-full items-center gap-1.5 overflow-hidden rounded-[6px] border border-white/15 px-1.5 py-1 text-left text-[10px] font-medium text-white shadow-sm backdrop-blur-sm transition-all hover:-translate-y-px hover:border-white/35 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-white sm:px-2 sm:text-xs;
+    @apply flex w-full items-center gap-1.5 overflow-hidden rounded-lg border border-white/20 px-1.5 py-1.5 text-left text-[10px] font-medium text-white shadow-[0_2px_7px_rgba(20,52,78,.18)] transition-all hover:-translate-y-px hover:border-white/45 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[#173b55] sm:px-2 sm:text-xs;
   }
 
-  .calendar-task-blue { @apply bg-[#194f9d]/85; }
-  .calendar-task-coral { @apply bg-[#b54f45]/85; }
-  .calendar-task-green { @apply bg-[#26755b]/85; }
-  .calendar-task-gold { @apply bg-[#96701c]/85; }
+  .calendar-task-blue { @apply bg-gradient-to-r from-[#1d5d96] to-[#2d78b1]; }
+  .calendar-task-coral { @apply bg-gradient-to-r from-[#b9534b] to-[#d66d5f]; }
+  .calendar-task-green { @apply bg-gradient-to-r from-[#2f7651] to-[#4b9668]; }
+  .calendar-task-gold { @apply bg-gradient-to-r from-[#9a711d] to-[#bd9134]; }
   .calendar-task-done { @apply opacity-55; }
   .calendar-task-done > span:nth-child(2) { @apply line-through; }
   .calendar-task-mark { @apply flex min-w-7 shrink-0 items-center justify-center text-[9px] text-white/75; }
   .calendar-task-mark svg { @apply size-3; }
-  .more-tasks { @apply pl-2 text-[10px] text-white/70 hover:text-white; }
+  .more-tasks { @apply pl-2 text-[10px] font-semibold text-[#42637a] hover:text-[#173b55]; }
 
   .editor-backdrop {
     @apply fixed inset-0 z-50 flex items-center justify-center bg-[#06101b]/55 p-4 backdrop-blur-[2px];

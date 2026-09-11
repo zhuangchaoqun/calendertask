@@ -137,7 +137,7 @@ async function decryptTasks(payload: string, secret: string) {
 }
 
 export default function Home() {
-  const today = useMemo(() => new Date(), []);
+  const [today, setToday] = useState(() => new Date());
   const [viewDate, setViewDate] = useState(today);
   const [tasks, setTasks] = useState<Task[]>(starterTasks);
   const [search, setSearch] = useState('');
@@ -171,6 +171,46 @@ export default function Home() {
   const suppressNextUpload = useRef(false);
   const accountConnectedOnce = useRef(false);
   const desktopPointer = useRef<{ mode: 'move' | 'resize'; edge?: ResizeEdge; x: number; y: number } | null>(null);
+  const todayRef = useRef(today);
+
+  useEffect(() => {
+    let midnightTimer = 0;
+
+    const refreshCurrentDate = () => {
+      const nextToday = new Date();
+      const previousToday = todayRef.current;
+      if (keyFor(nextToday) === keyFor(previousToday)) return;
+
+      todayRef.current = nextToday;
+      setToday(nextToday);
+      setViewDate((currentView) => sameMonth(currentView, previousToday)
+        ? new Date(nextToday.getFullYear(), nextToday.getMonth(), 1)
+        : currentView);
+    };
+
+    const scheduleMidnightRefresh = () => {
+      window.clearTimeout(midnightTimer);
+      const now = new Date();
+      const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 150);
+      midnightTimer = window.setTimeout(() => {
+        refreshCurrentDate();
+        scheduleMidnightRefresh();
+      }, Math.max(1_000, nextMidnight.getTime() - now.getTime()));
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refreshCurrentDate();
+    };
+
+    scheduleMidnightRefresh();
+    window.addEventListener('focus', refreshCurrentDate);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.clearTimeout(midnightTimer);
+      window.removeEventListener('focus', refreshCurrentDate);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   const beginDesktopPointer = (event: React.PointerEvent<HTMLElement>, mode: 'move' | 'resize', edge?: ResizeEdge) => {
     if (!window.daylightDesktop) return;
@@ -457,9 +497,9 @@ export default function Home() {
     return (
       <main className="login-gate">
         <section className="login-card">
-          {isDesktop && <div className="login-window-bar"><span>chaoquncalender</span><div className="desktop-window-buttons"><button type="button" onClick={() => window.daylightDesktop?.minimize()} aria-label="最小化"><Minimize2 /></button><button type="button" onClick={() => window.daylightDesktop?.close()} aria-label="关闭"><X /></button></div></div>}
-          <div className="login-logo"><CalendarDays /></div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-200/60">chaoquncalender</p>
+          {isDesktop && <div className="login-window-bar"><span>BEIOCALENDER</span><div className="desktop-window-buttons"><button type="button" onClick={() => window.daylightDesktop?.minimize()} aria-label="最小化"><Minimize2 /></button><button type="button" onClick={() => window.daylightDesktop?.close()} aria-label="关闭"><X /></button></div></div>}
+          <div className="login-logo"><img src="/brand-icon.svg" alt="BEIOCalender" /></div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-100/65">BEIOCALENDER</p>
           <h1 className="mt-2 text-2xl font-bold text-white">{authMode === 'login' ? '登录你的日历' : '创建日历账号'}</h1>
           <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">在当前服务器注册账号，多台电脑登录同一账号即可同步待办。</p>
           {accountLoading ? <div className="mt-7 flex items-center gap-2 text-sm text-cyan-100/70"><RefreshCw className="size-4 animate-spin" />正在检查登录状态…</div> : (
@@ -483,9 +523,9 @@ export default function Home() {
       <section style={{ opacity: isDesktop ? 1 : opacity / 100 }} className="calendar-shell mx-auto min-h-[calc(100vh-16px)] max-w-[1700px] overflow-hidden rounded-[24px] border border-white/10 bg-[#102844] shadow-[0_30px_90px_rgba(0,0,0,0.35)] transition-opacity sm:min-h-[calc(100vh-24px)] lg:min-h-[calc(100vh-32px)]">
         <header className="calendar-topbar">
           {isDesktop && <button type="button" className="desktop-drag-grip" title="按住拖动桌面插件" aria-label="拖动桌面插件" onPointerDown={(event) => beginDesktopPointer(event, 'move')} onPointerMove={updateDesktopPointer} onPointerUp={endDesktopPointer} onPointerCancel={endDesktopPointer}><GripHorizontal /><span>拖动</span></button>}
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100/60">chaoquncalender</p>
-            <h1 className="truncate text-base font-semibold text-[#fff8ae] sm:text-lg">今天是 {formatDate(today)}</h1>
+          <div className="brand-lockup min-w-0">
+            <img src="/brand-icon.svg" alt="" aria-hidden="true" />
+            <div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100/60">BEIOCALENDER</p><h1 className="truncate text-base font-semibold text-white sm:text-lg">{formatDate(today)} · 今天</h1></div>
           </div>
           <label className="relative hidden w-56 md:block">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/45" />
@@ -509,8 +549,8 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="grid grid-cols-7 border-y border-white/12 bg-[#6f9fb8] text-center text-[11px] font-semibold text-[#fffbd0] sm:text-sm">
-          {DAYS.map((day) => <div className="border-r border-[#173650] px-1 py-2 last:border-r-0" key={day}>{day}</div>)}
+        <div className="grid grid-cols-7 border-y border-[#b9cbd8] bg-[#dce8ef] text-center text-[11px] font-semibold text-[#28465b] sm:text-sm">
+          {DAYS.map((day) => <div className="border-r border-[#c2d1dc] px-1 py-2 last:border-r-0" key={day}>{day}</div>)}
         </div>
 
         <div className="calendar-grid">

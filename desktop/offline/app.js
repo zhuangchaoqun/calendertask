@@ -10,7 +10,7 @@ const pad = (n) => String(n).padStart(2, '0');
 const dateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const parseDate = (value) => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); };
 const formatDate = (date) => `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-const today = new Date();
+let today = new Date();
 let viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
 let editingId = null;
 let searchText = '';
@@ -21,6 +21,32 @@ let pointerAction = null;
 let syncTimer = null;
 let syncing = false;
 let syncPending = false;
+let midnightTimer = null;
+
+function sameCalendarMonth(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+function refreshCurrentDate() {
+  const nextToday = new Date();
+  if (dateKey(nextToday) === dateKey(today)) return;
+  const previousToday = today;
+  today = nextToday;
+  if (sameCalendarMonth(viewDate, previousToday)) {
+    viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
+  }
+  render();
+}
+
+function scheduleMidnightRefresh() {
+  clearTimeout(midnightTimer);
+  const now = new Date();
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 150);
+  midnightTimer = setTimeout(() => {
+    refreshCurrentDate();
+    scheduleMidnightRefresh();
+  }, Math.max(1000, nextMidnight.getTime() - now.getTime()));
+}
 
 function loadSession() {
   try {
@@ -303,6 +329,10 @@ $('logoutAccount').addEventListener('click', async () => {
   session = null; localStorage.removeItem(SESSION_KEY); tasks = loadTasks(); render(); refreshAccount(); $('authMessage').textContent = '已退出账号。';
 });
 window.addEventListener('online', () => syncNow());
+window.addEventListener('focus', refreshCurrentDate);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshCurrentDate();
+});
 
 function beginPointer(event, mode, edge) { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); pointerAction = { mode, edge, x: event.screenX, y: event.screenY }; }
 function movePointer(event) {
@@ -319,6 +349,7 @@ document.querySelectorAll('.resize').forEach((handle) => { handle.addEventListen
 
 bridge?.onStateChanged((state) => applyDesktopState(state));
 bridge?.getState().then((state) => applyDesktopState(state)).catch(() => undefined);
+scheduleMidnightRefresh();
 refreshAccount();
 if (session) api('/api/auth/session').then(() => syncNow()).catch((error) => {
   if (error.status === 401) {
